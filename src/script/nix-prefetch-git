@@ -8,7 +8,7 @@ expHash=
 hashType=$NIX_HASH_ALGO
 deepClone=$NIX_PREFETCH_GIT_DEEP_CLONE
 leaveDotGit=$NIX_PREFETCH_GIT_LEAVE_DOT_GIT
-fetchSubmodules=
+fetchSubmodules=true
 builder=
 branchName=$NIX_PREFETCH_GIT_BRANCH_NAME
 
@@ -185,7 +185,7 @@ init_submodules(){
 
         # checkout each submodule
         hash=$(echo "$l" | awk '{print $1}' | tr -d '-')
-        dir=$(echo "$l" | sed -n 's/^.[0-9a-f]\+ \(.*[^)]*\)\( (.*)\)\?$/\1/p')
+        dir=$(echo "$l" | sed -n 's/^.[0-9a-f]\+ \(.*[^)]*\)\( (.*)\)\?$/\1/p' | cut -d' ' -f1)
         name=$(
             git config -f .gitmodules --get-regexp submodule\..*\.path |
             sed -n "s,^\(.*\)\.path $dir\$,\\1,p")
