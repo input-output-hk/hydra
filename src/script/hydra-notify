@@ -59,7 +59,9 @@ sub buildFinished {
         }
     }
 
-    $build->update({ notificationpendingsince => undef });
+    foreach my $b ($build, @dependents) {
+        $b->update({ notificationpendingsince => undef });
+    }
 }
 
 sub stepFinished {
