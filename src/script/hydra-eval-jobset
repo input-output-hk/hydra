@@ -607,6 +607,18 @@ sub checkJobsetWrapped {
         return;
     }
 
+    # Provide a notification an eval is pending after fetch and input hash checks completed
+    foreach my $input (sort keys %{$inputInfo}) {
+        my $alt = $inputInfo->{$input}->[0];
+        if ($alt->{type} eq "git") {
+            $db->storage->dbh->do("notify eval_pending, ?", undef,
+                                  join("\t", $tmpId, $jobset->get_column('project'), $jobset->name,
+                                       defined $alt->{type} ? $alt->{type} : "NO_TYPE",
+                                       defined $alt->{uri} ? $alt->{uri} : "NO_URI",
+                                       defined $alt->{revision} ? $alt->{revision} : "NO_REV"));
+        }
+    }
+
     # Evaluate the job expression.
     my $evalStart = clock_gettime(CLOCK_MONOTONIC);
     my ($jobs, $nixExprInput) = evalJobs($inputInfo, $jobset->nixexprinput, $jobset->nixexprpath);
