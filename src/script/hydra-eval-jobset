@@ -742,7 +742,7 @@ sub checkJobsetWrapped {
             # Wake up hydra-queue-runner.
             my $lowestId;
             while (my ($id, $x) = each %buildMap) {
-                $lowestId = $id if $x->{new} && (!defined $lowestId || $id < $lowestId);
+                $lowestId = $id if (!defined $lowestId || $id < $lowestId);
             }
             $notifyAdded->execute($lowestId) if defined $lowestId;
 
