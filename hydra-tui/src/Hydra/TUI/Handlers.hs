@@ -41,6 +41,10 @@ handleEvent ::
   BrickEvent Name (HydraEvent Tx) ->
   EventM Name RootState ()
 handleEvent cardanoClient client e = do
+  -- FIXME: This way of composing handlers does not work. For example, the
+  -- handleGlobalEvents does decide to 'halt' when seing a Ctrl+C, but EventM is
+  -- not a short-circuiting monad, so we would continue processing and eventuall
+  -- come to a different conclusion (to continue).
   handleGlobalEvents e
   handleVtyEventVia (handleExtraHotkeys (handleEvent cardanoClient client)) () e
   zoom logStateL $ handleVtyEventVia handleVtyEventsLogState () e
