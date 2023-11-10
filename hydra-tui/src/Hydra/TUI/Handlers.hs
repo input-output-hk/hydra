@@ -1,7 +1,5 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
-{-# OPTIONS_GHC -Wno-unused-local-binds #-}
-{-# OPTIONS_GHC -Wno-unused-matches #-}
 
 module Hydra.TUI.Handlers where
 
@@ -9,7 +7,8 @@ import Hydra.Prelude hiding (Down, padLeft)
 
 import Brick
 import Hydra.Cardano.Api
-import Hydra.Chain (PostTxError (InternalWalletError, NotEnoughFuel), reason)
+import Hydra.TUI.Forms
+import Hydra.TUI.Model
 
 import Brick.Forms (Form (formState), editShowableFieldWithValidate, handleFormEvent, newForm, radioField)
 import Cardano.Api.UTxO qualified as UTxO
@@ -22,6 +21,7 @@ import Graphics.Vty (
 import Graphics.Vty qualified as Vty
 import Hydra.API.ClientInput (ClientInput (..))
 import Hydra.API.ServerOutput (ServerOutput (..), TimedServerOutput (..))
+import Hydra.Chain (PostTxError (InternalWalletError, NotEnoughFuel), reason)
 import Hydra.Chain.CardanoClient (CardanoClient (..))
 import Hydra.Chain.Direct.State ()
 import Hydra.Client (Client (..), HydraEvent (..))
@@ -29,11 +29,9 @@ import Hydra.Ledger (IsTx (..), balance)
 import Hydra.Ledger.Cardano (mkSimpleTx)
 import Hydra.Party (Party)
 import Hydra.Snapshot (Snapshot (..))
-import Hydra.TUI.Forms
 import Hydra.TUI.Handlers.Global (handleVtyGlobalEvents)
 import Hydra.TUI.Logging.Handlers (info, report, warn)
 import Hydra.TUI.Logging.Types (LogMessage, LogState, LogVerbosity (..), Severity (..), logMessagesL, logVerbosityL)
-import Hydra.TUI.Model
 import Lens.Micro.Mtl (use, (%=), (.=))
 import Prelude qualified
 
@@ -82,14 +80,13 @@ handleGlobalEvents = \case
 
 handleHydraEventsConnectedState :: HydraEvent Tx -> EventM Name ConnectedState ()
 handleHydraEventsConnectedState = \case
-  ClientConnected -> id .= Connected emptyConnection
-  ClientDisconnected -> id .= Disconnected
+  ClientConnected -> put $ Connected emptyConnection
+  ClientDisconnected -> put Disconnected
   _ -> pure ()
 
 handleVtyEventsHeadState :: CardanoClient -> Client Tx IO -> Vty.Event -> EventM Name HeadState ()
 handleVtyEventsHeadState cardanoClient hydraClient e = do
-  h <- use id
-  case h of
+  get >>= \case
     Idle -> case e of
       EvKey (KChar 'i') [] -> liftIO (sendInput hydraClient Init)
       _ -> pure ()
@@ -105,8 +102,7 @@ handleVtyEventsActiveHeadState :: CardanoClient -> Client Tx IO -> UTxO -> Vty.E
 handleVtyEventsActiveHeadState cardanoClient hydraClient utxo e = do
   zoom (initializingStateL . initializingScreenL) $ handleVtyEventsInitializingScreen cardanoClient hydraClient e
   zoom openStateL $ handleVtyEventsOpen cardanoClient hydraClient utxo e
-  s <- use id
-  case s of
+  get >>= \case
     FanoutPossible -> handleVtyEventsFanoutPossible hydraClient e
     Final -> handleVtyEventsFinal hydraClient e
     _ -> pure ()
@@ -116,21 +112,20 @@ handleVtyEventsInitializingScreen cardanoClient hydraClient e = do
   case e of
     EvKey (KChar 'a') [] -> liftIO (sendInput hydraClient Abort)
     _ -> pure ()
-  initializingScreen <- use id
-  case initializingScreen of
+  get >>= \case
     InitializingHome -> case e of
       EvKey (KChar 'c') [] -> do
         utxo <- liftIO $ queryUTxOByAddress cardanoClient [mkMyAddress cardanoClient hydraClient]
-        id .= CommitMenu (utxoCheckboxField $ UTxO.toMap utxo)
+        put $ CommitMenu (utxoCheckboxField $ UTxO.toMap utxo)
       _ -> pure ()
     CommitMenu i -> do
       case e of
-        EvKey KEsc [] -> id .= InitializingHome
+        EvKey KEsc [] -> put InitializingHome
         EvKey KEnter [] -> do
           let u = formState i
           let commitUTxO = UTxO $ Map.mapMaybe (\(v, p) -> if p then Just v else Nothing) u
           liftIO $ externalCommit hydraClient commitUTxO
-          id .= InitializingHome
+          put InitializingHome
         _ -> pure ()
       zoom commitMenuL $ handleFormEvent (VtyEvent e)
 
@@ -140,29 +135,28 @@ handleVtyEventsOpen cardanoClient hydraClient utxo e = do
     EvKey (KChar 'c') [] ->
       liftIO $ sendInput hydraClient Close
     _ -> pure ()
-  k <- use id
-  case k of
+  get >>= \case
     OpenHome -> do
       case e of
         EvKey (KChar 'n') [] -> do
           let utxo' = myAvailableUTxO (networkId cardanoClient) (getVerificationKey $ sk hydraClient) utxo
-          id .= SelectingUTxO (utxoRadioField utxo')
+          put $ SelectingUTxO (utxoRadioField utxo')
         _ -> pure ()
     SelectingUTxO i -> do
       case e of
-        EvKey KEsc [] -> id .= OpenHome
+        EvKey KEsc [] -> put OpenHome
         EvKey KEnter [] -> do
           let utxoSelected@(_, TxOut{txOutValue = v}) = formState i
           let Lovelace limit = selectLovelace v
           let enteringAmountForm =
                 let field = editShowableFieldWithValidate id "amount" (\n -> n > 0 && n <= limit)
                  in newForm [field] limit
-          id .= EnteringAmount{utxoSelected, enteringAmountForm}
+          put EnteringAmount{utxoSelected, enteringAmountForm}
         _ -> pure ()
       zoom selectingUTxOFormL $ handleFormEvent (VtyEvent e)
     EnteringAmount utxoSelected i -> do
       case e of
-        EvKey KEsc [] -> id .= OpenHome
+        EvKey KEsc [] -> put OpenHome
         EvKey KEnter [] -> do
           let amountEntered = formState i
           let ownAddress = mkVkAddress (networkId cardanoClient) (getVerificationKey $ sk hydraClient)
@@ -175,19 +169,19 @@ handleVtyEventsOpen cardanoClient hydraClient utxo e = do
               addresses = getRecipientAddress <$> Map.elems (UTxO.toMap utxo)
               getRecipientAddress TxOut{txOutAddress = addr} = addr
           let selectingRecipientForm = newForm [field] (Prelude.head addresses)
-          id .= SelectingRecipient{utxoSelected, amountEntered, selectingRecipientForm}
+          put SelectingRecipient{utxoSelected, amountEntered, selectingRecipientForm}
         _ -> pure ()
       zoom enteringAmountFormL $ handleFormEvent (VtyEvent e)
     SelectingRecipient utxoSelected amountEntered i -> do
       case e of
-        EvKey KEsc [] -> id .= OpenHome
+        EvKey KEsc [] -> put OpenHome
         EvKey KEnter [] -> do
           let recipient = formState i
           case mkSimpleTx utxoSelected (recipient, lovelaceToValue $ Lovelace amountEntered) (sk hydraClient) of
             Left _ -> pure ()
             Right tx -> do
               liftIO (sendInput hydraClient (NewTx tx))
-          id .= OpenHome
+          put OpenHome
         _ -> pure ()
       zoom selectingRecipientFormL $ handleFormEvent (VtyEvent e)
 
@@ -215,10 +209,10 @@ handleHydraEventsConnection = \case
 handleHydraEventsHeadState :: HydraEvent Tx -> EventM Name HeadState ()
 handleHydraEventsHeadState e = do
   case e of
-    Update TimedServerOutput{time, output = HeadIsInitializing{parties, headId}} ->
-      id .= Active (newActiveLink (toList parties) headId)
-    Update TimedServerOutput{time, output = HeadIsAborted{}} ->
-      id .= Idle
+    Update TimedServerOutput{output = HeadIsInitializing{parties, headId}} ->
+      put $ Active (newActiveLink (toList parties) headId)
+    Update TimedServerOutput{output = HeadIsAborted{}} ->
+      put Idle
     _ -> pure ()
   zoom activeLinkL $ handleHydraEventsActiveLink e
 
@@ -227,26 +221,26 @@ handleHydraEventsActiveLink e = do
   case e of
     Update TimedServerOutput{output = Committed{party, utxo}} -> do
       partyCommitted party utxo
-    Update TimedServerOutput{time, output = HeadIsOpen{utxo}} -> do
+    Update TimedServerOutput{output = HeadIsOpen{}} -> do
       activeHeadStateL .= Open OpenHome
-    Update TimedServerOutput{time, output = SnapshotConfirmed{snapshot = Snapshot{utxo}}} ->
+    Update TimedServerOutput{output = SnapshotConfirmed{snapshot = Snapshot{utxo}}} ->
       utxoL .= utxo
-    Update TimedServerOutput{time, output = HeadIsClosed{headId, snapshotNumber, contestationDeadline}} -> do
+    Update TimedServerOutput{output = HeadIsClosed{contestationDeadline}} -> do
       activeHeadStateL .= Closed{closedState = ClosedState{contestationDeadline}}
-    Update TimedServerOutput{time, output = ReadyToFanout{}} ->
+    Update TimedServerOutput{output = ReadyToFanout{}} ->
       activeHeadStateL .= FanoutPossible
-    Update TimedServerOutput{time, output = HeadIsFinalized{utxo}} -> do
+    Update TimedServerOutput{output = HeadIsFinalized{utxo}} -> do
       utxoL .= utxo
       activeHeadStateL .= Final
     _ -> pure ()
 
 handleHydraEventsInfo :: HydraEvent Tx -> EventM Name [LogMessage] ()
 handleHydraEventsInfo = \case
-  Update TimedServerOutput{time, output = HeadIsInitializing{parties, headId}} ->
+  Update TimedServerOutput{time, output = HeadIsInitializing{}} ->
     info time "Head is initializing"
   Update TimedServerOutput{time, output = Committed{party, utxo}} -> do
     info time $ show party <> " committed " <> renderValue (balance @Tx utxo)
-  Update TimedServerOutput{time, output = HeadIsOpen{utxo}} -> do
+  Update TimedServerOutput{time, output = HeadIsOpen{}} -> do
     info time "Head is now open!"
   Update TimedServerOutput{time, output = HeadIsAborted{}} -> do
     info time "Head aborted, back to square one."
@@ -260,7 +254,7 @@ handleHydraEventsInfo = \case
     report Success time "Transaction submitted successfully!"
   Update TimedServerOutput{time, output = TxInvalid{transaction, validationError}} ->
     warn time ("Transaction with id " <> show (txId transaction) <> " is not applicable: " <> show validationError)
-  Update TimedServerOutput{time, output = HeadIsFinalized{utxo}} -> do
+  Update TimedServerOutput{time, output = HeadIsFinalized{}} -> do
     info time "Head is finalized"
   Update TimedServerOutput{time, output = InvalidInput{reason}} ->
     warn time ("Invalid input error: " <> toText reason)
@@ -310,8 +304,7 @@ handleVtyEventsLogState = \case
 --
 scroll :: Direction -> EventM Name LogState ()
 scroll direction = do
-  x <- use logVerbosityL
-  case x of
+  use logVerbosityL >>= \case
     Full -> do
       let vp = viewportScroll fullFeedbackViewportName
       vScrollPage vp direction
