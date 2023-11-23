@@ -180,12 +180,23 @@ instance HasTextEnvelope (VerificationKey HydraKey) where
       <> fromString (algorithmNameDSIGN (Proxy :: Proxy Ed25519DSIGN))
 
 -- | Create a new 'SigningKey' from a 'ByteString' seed. The created keys are
--- not random and insecure, so don't use this in production code!
+-- only as secure as the original seed is.
 generateSigningKey :: ByteString -> SigningKey HydraKey
 generateSigningKey seed =
   HydraSigningKey . genKeyDSIGN $ mkSeedFromBytes hashOfSeed
  where
   hashOfSeed = digest (Proxy :: Proxy SHA256) seed
+
+-- | Create a new 'SigningKey' from another 'SigningKey'. If the resulting key
+-- is compromised, the original key might be as well.
+generateSigningKeyFromOtherKey ::
+  SerialiseAsRawBytes (SigningKey kr) =>
+  SigningKey kr ->
+  SigningKey HydraKey
+generateSigningKeyFromOtherKey key =
+  generateSigningKey keyBytes
+ where
+  keyBytes = serialiseToRawBytes key
 
 -- * Signatures
 

@@ -155,7 +155,7 @@ data RunOptions = RunOptions
   , apiHost :: IP
   , apiPort :: PortNumber
   , monitoringPort :: Maybe PortNumber
-  , hydraSigningKey :: FilePath
+  , hydraSigningKey :: Maybe FilePath
   , hydraVerificationKeys :: [FilePath]
   , hydraScriptsTxId :: TxId
   , persistenceDir :: FilePath
@@ -210,7 +210,7 @@ runOptionsParser =
     <*> apiHostParser
     <*> apiPortParser
     <*> optional monitoringPortParser
-    <*> hydraSigningKeyFileParser
+    <*> optional hydraSigningKeyFileParser
     <*> many hydraVerificationKeyFileParser
     <*> hydraScriptsTxIdParser
     <*> persistenceDirParser
