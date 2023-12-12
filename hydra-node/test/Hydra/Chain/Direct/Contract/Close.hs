@@ -85,6 +85,7 @@ healthyCloseTx =
     CloseWithConfirmedSnapshot
       { snapshotNumber = healthyCloseSnapshotNumber
       , closeUtxoHash = UTxOHash $ hashUTxO @Tx healthyCloseUTxO
+      , closeUtxoToDecommitHash = UTxOHash $ hashUTxO @Tx mempty
       , signatures = healthySignature healthyCloseSnapshotNumber
       }
 
@@ -148,6 +149,7 @@ healthySnapshot =
     , number = healthyCloseSnapshotNumber
     , utxo = healthyCloseUTxO
     , confirmed = []
+    , utxoToDecommit = Nothing
     }
 
 healthyCloseUTxO :: UTxO

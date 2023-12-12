@@ -13,6 +13,7 @@ import Data.ByteString.Lazy qualified as LBS
 import Data.ByteString.Short ()
 import Data.Text (pack)
 import Hydra.API.APIServerLog (APIServerLog (..), Method (..), PathInfo (..))
+import Hydra.API.ClientInput (ClientInput (..))
 import Hydra.Cardano.Api (
   CtxUTxO,
   HashableScriptData,
@@ -150,13 +151,16 @@ instance Arbitrary TransactionSubmitted where
 
 -- | Hydra HTTP server
 httpApp ::
+  FromJSON tx =>
   Tracer IO APIServerLog ->
   Chain tx IO ->
   PParams LedgerEra ->
   -- | A means to get the 'HeadId' if initializing the Head.
   (STM IO) (Maybe HeadId) ->
+  -- | Callback to yield a 'ClientInput' to the main event loop.
+  (ClientInput tx -> IO ()) ->
   Application
-httpApp tracer directChain pparams getInitializingHeadId request respond = do
+httpApp tracer directChain pparams getInitializingHeadId putClientInput request respond = do
   traceWith tracer $
     APIHTTPRequestReceived
       { method = Method $ requestMethod request
@@ -166,6 +170,10 @@ httpApp tracer directChain pparams getInitializingHeadId request respond = do
     ("POST", ["commit"]) ->
       consumeRequestBodyStrict request
         >>= handleDraftCommitUtxo directChain getInitializingHeadId
+        >>= respond
+    ("POST", ["decommit"]) ->
+      consumeRequestBodyStrict request
+        >>= handleDecommit putClientInput
         >>= respond
     ("GET", ["protocol-parameters"]) ->
       respond . responseLBS status200 [] . Aeson.encode $
@@ -317,6 +325,15 @@ handleSubmitUserTx directChain body = do
           responseLBS status200 [] (Aeson.encode TransactionSubmitted)
  where
   Chain{submitTx} = directChain
+
+handleDecommit :: forall tx. FromJSON tx => (ClientInput tx -> IO ()) -> LBS.ByteString -> IO Response
+handleDecommit putClientInput body =
+  case Aeson.eitherDecode' body :: Either String tx of
+    Left err ->
+      pure $ responseLBS status400 [] (Aeson.encode $ Aeson.String $ pack err)
+    Right decommitTx -> do
+      putClientInput Decommit{decommitTx}
+      pure $ responseLBS status200 [] (Aeson.encode $ Aeson.String "OK")
 
 return400 :: IsChainState tx => PostTxError tx -> Response
 return400 = responseLBS status400 [] . Aeson.encode . toJSON
