@@ -11,12 +11,20 @@ import Hydra.Cardano.Api (fromLedgerPParams, serialiseToTextEnvelope, shelleyBas
 import Hydra.Chain.Direct.Fixture (defaultPParams)
 import Hydra.JSONSchema (SchemaSelector, prop_validateJSONSchema, validateJSON, withJsonSpecifications)
 import Hydra.Ledger.Cardano (Tx)
+import Hydra.Ledger.Simple (SimpleTx)
 import Hydra.Logging (nullTracer)
 import System.FilePath ((</>))
 import System.IO.Unsafe (unsafePerformIO)
 import Test.Aeson.GenericSpecs (roundtripAndGoldenSpecs)
 import Test.Hspec.Wai (MatchBody (..), ResponseMatcher (matchBody), get, shouldRespondWith, with)
-import Test.QuickCheck.Property (counterexample, forAll, property)
+import Test.QuickCheck.Property
+    ( counterexample,
+      forAll,
+      property,
+      counterexample,
+      forAll,
+      property,
+      )
 
 spec :: Spec
 spec = do
@@ -51,6 +59,20 @@ spec = do
           . key "oneOf"
           . nth 0
           . key "payload"
+
+    prop "Validate /decommit publish api schema" $
+      prop_validateJSONSchema @Tx "api.json" $
+        key "channels"
+          . key "/decommit"
+          . key "publish"
+          . key "message"
+
+    prop "Validate /decommit subscribe api schema" $
+      prop_validateJSONSchema @Text "api.json" $
+        key "channels"
+          . key "/decommit"
+          . key "subscribe"
+          . key "message"
 
     apiServerSpec
     describe "SubmitTxRequest accepted tx formats" $ do
@@ -89,8 +111,9 @@ apiServerSpec = do
               { matchBody = matchJSON $ fromLedgerPParams shelleyBasedEra defaultPParams
               }
  where
-  webServer = httpApp nullTracer dummyChainHandle defaultPParams getHeadId
-  getHeadId = pure Nothing
+  webServer = httpApp @SimpleTx nullTracer dummyChainHandle defaultPParams getHeadId putClientInput
+  putClientInput _ = failure "unexpected call to putClientInput"
+  getHeadId = failure "unexpected call to getHeadId"
 
 -- * Helpers
 

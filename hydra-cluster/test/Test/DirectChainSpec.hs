@@ -245,7 +245,7 @@ spec = around (showLogsOnFailure "DirectChainSpec") $ do
 
   it "can open, close & fanout a Head" $ \tracer -> do
     withTempDir "hydra-cluster" $ \tmp -> do
-      withCardanoNodeDevnet (contramap FromNode tracer) tmp $ \node@RunningNode{nodeSocket, networkId} -> do
+      withCardanoNodeDevnet (contramap FromNode tracer) tmp $ \node@RunningNode{nodeSocket} -> do
         hydraScriptsTxId <- publishHydraScriptsAs node Faucet
         -- Alice setup
         (aliceCardanoVk, _) <- keysFor Alice
@@ -273,6 +273,7 @@ spec = around (showLogsOnFailure "DirectChainSpec") $ do
                     , number = 1
                     , utxo = someUTxO
                     , confirmed = []
+                    , utxoToDecommit = Nothing
                     }
 
             postTx . CloseTx headId headParameters $
@@ -303,7 +304,7 @@ spec = around (showLogsOnFailure "DirectChainSpec") $ do
                 }
             aliceChain `observesInTime` OnFanoutTx headId
             failAfter 5 $
-              waitForUTxO networkId nodeSocket someUTxO
+              waitForUTxO node someUTxO
 
   it "can restart head to point in the past and replay on-chain events" $ \tracer -> do
     withTempDir "hydra-cluster" $ \tmp -> do
@@ -407,6 +408,7 @@ spec = around (showLogsOnFailure "DirectChainSpec") $ do
                     , number = 1
                     , utxo = someUTxO
                     , confirmed = []
+                    , utxoToDecommit = Nothing
                     }
             postTx . ContestTx headId headParameters $
               ConfirmedSnapshot
@@ -422,6 +424,7 @@ spec = around (showLogsOnFailure "DirectChainSpec") $ do
                     , number = 2
                     , utxo = someUTxO
                     , confirmed = []
+                    , utxoToDecommit = Nothing
                     }
             let contestAgain =
                   postTx . ContestTx headId headParameters $

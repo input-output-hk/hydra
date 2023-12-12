@@ -30,7 +30,6 @@ import Cardano.Ledger.Api (
   bodyTxL,
   collateralInputsTxBodyL,
   ensureMinCoinTxOut,
-  estimateMinFeeTx,
   evalTxExUnits,
   feeTxBodyL,
   inputsTxBodyL,

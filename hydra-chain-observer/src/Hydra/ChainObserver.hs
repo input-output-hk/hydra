@@ -34,6 +34,7 @@ import Hydra.Chain.Direct.Tx (
   CollectComObservation (..),
   CommitObservation (..),
   ContestObservation (..),
+  DecrementObservation (..),
   FanoutObservation (..),
   HeadObservation (..),
   InitObservation (..),
@@ -80,6 +81,7 @@ data ChainObserverLog
   | HeadInitTx {headId :: HeadId}
   | HeadCommitTx {headId :: HeadId}
   | HeadCollectComTx {headId :: HeadId}
+  | HeadDecrementTx {headId :: HeadId}
   | HeadCloseTx {headId :: HeadId}
   | HeadFanoutTx {headId :: HeadId}
   | HeadAbortTx {headId :: HeadId}
@@ -184,6 +186,7 @@ chainSyncClient tracer networkId startingPoint observerHandler =
     Init InitObservation{headId} -> pure $ HeadInitTx{headId}
     Commit CommitObservation{headId} -> pure $ HeadCommitTx{headId}
     CollectCom CollectComObservation{headId} -> pure $ HeadCollectComTx{headId}
+    Decrement DecrementObservation{headId} -> pure $ HeadDecrementTx{headId}
     Close CloseObservation{headId} -> pure $ HeadCloseTx{headId}
     Fanout FanoutObservation{headId} -> pure $ HeadFanoutTx{headId}
     Abort AbortObservation{headId} -> pure $ HeadAbortTx{headId}

@@ -61,6 +61,7 @@ import Hydra.Cluster.Fixture (
 import Hydra.Cluster.Scenarios (
   EndToEndLog (..),
   canCloseWithLongContestationPeriod,
+  canDecommit,
   canSubmitTransactionThroughAPI,
   headIsInitializingWith,
   initWithWrongKeys,
@@ -197,6 +198,11 @@ spec = around (showLogsOnFailure "EndToEndSpec") $ do
           withCardanoNodeDevnet (contramap FromCardanoNode tracer) tmpDir $ \node ->
             publishHydraScriptsAs node Faucet
               >>= canSubmitTransactionThroughAPI tracer tmpDir node
+      it "can decommit utxo" $ \tracer -> do
+        withClusterTempDir $ \tmpDir -> do
+          withCardanoNodeDevnet (contramap FromCardanoNode tracer) tmpDir $ \node ->
+            publishHydraScriptsAs node Faucet
+              >>= canDecommit tracer tmpDir node
 
     describe "three hydra nodes scenario" $ do
       it "does not error when all nodes open the head concurrently" $ \tracer ->
@@ -728,7 +734,7 @@ timedTx tmpDir tracer node@RunningNode{networkId, nodeSocket} hydraScriptsTxId =
     confirmedTransactions ^.. values `shouldBe` [toJSON $ txId tx]
 
 initAndClose :: FilePath -> Tracer IO EndToEndLog -> Int -> TxId -> RunningNode -> IO ()
-initAndClose tmpDir tracer clusterIx hydraScriptsTxId node@RunningNode{nodeSocket, networkId} = do
+initAndClose tmpDir tracer clusterIx hydraScriptsTxId node@RunningNode{nodeSocket} = do
   aliceKeys@(aliceCardanoVk, _) <- generate genKeyPair
   bobKeys@(bobCardanoVk, _) <- generate genKeyPair
   carolKeys@(carolCardanoVk, _) <- generate genKeyPair
@@ -807,20 +813,17 @@ initAndClose tmpDir tracer clusterIx hydraScriptsTxId node@RunningNode{nodeSocke
             ]
             <> fmap toJSON (Map.fromList (UTxO.pairs committedUTxOByBob))
 
-    let expectedSnapshot =
-          object
-            [ "headId" .= headId
-            , "snapshotNumber" .= int expectedSnapshotNumber
-            , "utxo" .= newUTxO
-            , "confirmedTransactions" .= [txId tx]
-            ]
-        expectedSnapshotNumber = 1
+    let expectedSnapshotNumber :: Int = 1
 
     waitMatch 10 n1 $ \v -> do
       guard $ v ^? key "tag" == Just "SnapshotConfirmed"
       guard $ v ^? key "headId" == Just (toJSON headId)
-      snapshot <- v ^? key "snapshot"
-      guard $ snapshot == expectedSnapshot
+      snapshotNumber <- v ^? key "snapshot" . key "snapshotNumber"
+      guard $ snapshotNumber == toJSON expectedSnapshotNumber
+      utxo <- v ^? key "snapshot" . key "utxo"
+      guard $ utxo == toJSON newUTxO
+      confirmedTransactions <- v ^? key "snapshot" . key "confirmedTransactions"
+      guard $ confirmedTransactions == toJSON [txId tx]
 
     send n1 $ input "GetUTxO" []
     waitFor hydraTracer 10 [n1] $ output "GetUTxOResponse" ["utxo" .= newUTxO, "headId" .= headId]
@@ -846,7 +849,7 @@ initAndClose tmpDir tracer clusterIx hydraScriptsTxId node@RunningNode{nodeSocke
       Error err ->
         failure $ "newUTxO isn't valid JSON?: " <> err
       Data.Aeson.Success u ->
-        failAfter 5 $ waitForUTxO networkId nodeSocket u
+        failAfter 5 $ waitForUTxO node u
 
 --
 -- Fixtures
