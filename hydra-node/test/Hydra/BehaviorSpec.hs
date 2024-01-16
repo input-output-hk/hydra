@@ -63,6 +63,7 @@ import Hydra.Node (
 import Hydra.Node.EventQueue (EventQueue (putEvent), createEventQueue)
 import Hydra.NodeSpec (createPersistenceInMemory)
 import Hydra.Party (Party (..), deriveParty)
+import Hydra.Persistence (eventPairFromPersistenceIncremental)
 import Hydra.Snapshot (Snapshot (..), SnapshotNumber, getSnapshot)
 import Test.Aeson.GenericSpecs (roundtripAndGoldenSpecs)
 import Test.Hydra.Fixture (alice, aliceSk, bob, bobSk, deriveOnChainId, testHeadId, testHeadSeed)
@@ -776,6 +777,8 @@ createHydraNode ::
 createHydraNode ledger nodeState signingKey otherParties outputs outputHistory chain cp = do
   eq <- createEventQueue
   persistence <- createPersistenceInMemory
+  let (eventSource, eventSink) = eventPairFromPersistenceIncremental persistence
+      eventSinks = eventSink :| []
   connectNode chain $
     HydraNode
       { eq
@@ -802,7 +805,8 @@ createHydraNode ledger nodeState signingKey otherParties outputs outputHistory c
             , contestationPeriod = cp
             , participants
             }
-      , persistence
+      , eventSource
+      , eventSinks
       }
  where
   party = deriveParty signingKey

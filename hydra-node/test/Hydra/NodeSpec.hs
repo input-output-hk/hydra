@@ -39,8 +39,10 @@ import Hydra.Node.EventQueue (EventQueue (..), createEventQueue)
 import Hydra.Node.ParameterMismatch (ParameterMismatch (..))
 import Hydra.Options (defaultContestationPeriod)
 import Hydra.Party (Party, deriveParty)
-import Hydra.Persistence (PersistenceIncremental (..))
+import Hydra.Persistence (PersistenceIncremental (..), NewPersistenceIncremental (..), eventPairFromPersistenceIncremental, EventSource(..), EventSink(..))
 import Test.Hydra.Fixture (alice, aliceSk, bob, bobSk, carol, carolSk, deriveOnChainId, testHeadId, testHeadSeed)
+import Hydra.Persistence (EventSource)
+import Hydra.Persistence (EventSink)
 
 spec :: Spec
 spec = parallel $ do
@@ -133,15 +135,17 @@ spec = parallel $ do
     failAfter 1 $
       showLogsOnFailure "NodeSpec" $ \tracer -> do
         persistence <- createPersistenceInMemory
+        let (eventSource, eventSink) = eventPairFromPersistenceIncremental persistence
+            eventSinks = eventSink :| []
 
-        createHydraNode' persistence bobSk [alice, carol] defaultContestationPeriod eventsToOpenHead
+        createHydraNode' eventSource eventSinks bobSk [alice, carol] defaultContestationPeriod eventsToOpenHead
           >>= runToCompletion tracer
 
         let reqTxEvent = NetworkEvent{ttl = defaultTTL, party = alice, message = ReqTx{transaction = tx1}}
             tx1 = SimpleTx{txSimpleId = 1, txInputs = utxoRefs [2], txOutputs = utxoRefs [4]}
 
         (node, getServerOutputs) <-
-          createHydraNode' persistence bobSk [alice, carol] defaultContestationPeriod [reqTxEvent]
+          createHydraNode' eventSource eventSinks bobSk [alice, carol] defaultContestationPeriod [reqTxEvent]
             >>= recordServerOutputs
         runToCompletion tracer node
 
@@ -245,25 +249,32 @@ createHydraNode ::
   [Event SimpleTx] ->
   m (HydraNode SimpleTx m)
 createHydraNode =
-  createHydraNode'
-    PersistenceIncremental
-      { append = const $ pure ()
-      , loadAll = pure []
-      }
+  createHydraNode' eventSource (eventSink :| [])
+
+
+ where
+  append = const $ pure ()
+  loadAll = pure []
+  eventSource = EventSource {getEvents' = loadAll}
+  eventSink = EventSink {putEvent' = append}
 
 createHydraNode' ::
   (MonadDelay m, MonadAsync m, MonadLabelledSTM m, MonadThrow m) =>
-  PersistenceIncremental (StateChanged SimpleTx) m ->
+  EventSource (StateChanged SimpleTx) m ->
+  NonEmpty (EventSink (StateChanged SimpleTx) m) ->
   SigningKey HydraKey ->
   [Party] ->
   ContestationPeriod ->
   [Event SimpleTx] ->
   m (HydraNode SimpleTx m)
-createHydraNode' persistence signingKey otherParties contestationPeriod events = do
+createHydraNode' eventSource eventSinks signingKey otherParties contestationPeriod events = do
   eq@EventQueue{putEvent} <- createEventQueue
   forM_ events putEvent
-  (headState, _) <- loadState nullTracer persistence SimpleChainState{slot = ChainSlot 0}
+  (headState, _) <- loadState nullTracer eventSource SimpleChainState{slot = ChainSlot 0}
   nodeState <- createNodeState headState
+
+  let persistence = createPersiste
+
   pure $
     HydraNode
       { eq
@@ -285,7 +296,8 @@ createHydraNode' persistence signingKey otherParties contestationPeriod events =
             , contestationPeriod
             , participants
             }
-      , persistence
+      , eventSource
+      , eventSinks
       }
  where
   party = deriveParty signingKey
@@ -302,7 +314,22 @@ recordNetwork node = do
 recordPersistedItems :: HydraNode tx IO -> IO (HydraNode tx IO, IO [StateChanged tx])
 recordPersistedItems node = do
   (record, query) <- messageRecorder
-  pure (node{persistence = PersistenceIncremental{append = record, loadAll = pure []}}, query)
+  lastStateChangeId <- newTVarIO 0
+  -- pure (node{persistence = PersistenceIncremental{append = record, loadAll = pure []}}, query)
+  let getEvents' = pure []
+      putEvent' = \e -> do
+        atomically $ modifyTVar' lastStateChangeId succ
+        record e
+  pure
+    ( node{persistence =
+          NewPersistenceIncremental {
+            eventSource = EventSource {getEvents'},
+            eventSinks = EventSink{putEvent'} :| [],
+            lastStateChangeId
+            }
+          }
+    , query
+    )
 
 recordServerOutputs :: HydraNode tx IO -> IO (HydraNode tx IO, IO [ServerOutput tx])
 recordServerOutputs node = do
