@@ -142,8 +142,12 @@ data HydraNode tx m = HydraNode
   , server :: Server tx m
   , ledger :: Ledger tx
   , env :: Environment
-  , persistence :: PersistenceIncremental (StateChanged tx) m
+  , eventSource :: EventSource (EventId, StateChanged tx) m
+  , eventSinks :: [EventSink (EventId, StateChanged tx) m]
   }
+
+-- XXX: Overloaded terminology!
+newtype EventId = EventId Word64
 
 data HydraNodeLog tx
   = BeginEvent {by :: Party, eventId :: Word64, event :: Event tx}
@@ -172,10 +176,24 @@ runHydraNode ::
   Tracer m (HydraNodeLog tx) ->
   HydraNode tx m ->
   m ()
-runHydraNode tracer node =
-  -- NOTE(SN): here we could introduce concurrent head processing, e.g. with
-  -- something like 'forM_ [0..1] $ async'
-  forever $ stepHydraNode tracer node
+runHydraNode tracer node = do
+  loadAndReplayEvents eventSource eventSinks
+  forever $
+    stepHydraNode tracer node
+ where
+  HydraNode{eventSource, eventSinks} = node
+
+-- |
+-- TODO: test that this
+-- * replays completely
+-- * round-robin puts events into all sinks
+--   (OR: puts all events into one sink before moving on to the next?)
+-- * fails if one of the event sink fails
+loadAndReplayEvents ::
+  EventSource (EventId, a) m ->
+  [EventSink (EventId, a) m] ->
+  m ()
+loadAndReplayEvents = undefined
 
 stepHydraNode ::
   ( MonadCatch m
@@ -280,7 +298,7 @@ createNodeState initialState = do
 loadState ::
   (MonadThrow m, IsChainState tx) =>
   Tracer m (HydraNodeLog tx) ->
-  PersistenceIncremental (StateChanged tx) m ->
+  EventSource (EventId, StateChanged tx) m ->
   ChainStateType tx ->
   m (HeadState tx, ChainStateHistory tx)
 loadState tracer persistence defaultChainState = do

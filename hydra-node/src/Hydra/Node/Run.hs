@@ -82,6 +82,7 @@ run opts = do
       withCardanoLedger pparams globals $ \ledger -> do
         persistence <- createPersistenceIncremental $ persistenceDir <> "/state"
         (hs, chainStateHistory) <- loadState (contramap Node tracer) persistence initialChainState
+        (persistenceSource, persistenceSink) <- newPersistenceSourceAndSink persistence
 
         checkHeadState (contramap Node tracer) env hs
         nodeState <- createNodeState hs
@@ -99,16 +100,20 @@ run opts = do
             withNetwork tracer (connectionMessages server) networkConfiguration putNetworkEvent $ \hn -> do
               -- Main loop
               runHydraNode (contramap Node tracer) $
-                HydraNode
-                  { eq
-                  , hn
-                  , nodeState
-                  , oc = chain
-                  , server
-                  , ledger
-                  , env
-                  , persistence
-                  }
+                -- FORK
+                convertToGummiworm $
+                  -- END OF FORK
+                  HydraNode
+                    { eq
+                    , hn
+                    , nodeState
+                    , oc = chain
+                    , server
+                    , ledger
+                    , env
+                    , eventSource = persistenceSource
+                    , eventSinks = [persistenceSink]
+                    }
  where
   connectionMessages Server{sendOutput} = \case
     Connected nodeid -> sendOutput $ PeerConnected nodeid
