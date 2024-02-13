@@ -63,7 +63,7 @@ import Hydra.Node (
 import Hydra.Node.EventQueue (EventQueue (putEvent), createEventQueue)
 import Hydra.NodeSpec (createPersistenceInMemory)
 import Hydra.Party (Party (..), deriveParty)
-import Hydra.Persistence (eventPairFromPersistenceIncremental)
+import Hydra.Persistence (eventPairFromPersistenceIncremental, NewPersistenceIncremental(..))
 import Hydra.Snapshot (Snapshot (..), SnapshotNumber, getSnapshot)
 import Test.Aeson.GenericSpecs (roundtripAndGoldenSpecs)
 import Test.Hydra.Fixture (alice, aliceSk, bob, bobSk, deriveOnChainId, testHeadId, testHeadSeed)
@@ -779,6 +779,10 @@ createHydraNode ledger nodeState signingKey otherParties outputs outputHistory c
   persistence <- createPersistenceInMemory
   let (eventSource, eventSink) = eventPairFromPersistenceIncremental persistence
       eventSinks = eventSink :| []
+  
+  --FIXME(Elaine): initialize last state change ID
+  let persistence = NewPersistenceIncremental {eventSource, eventSinks, lastStateChangeId = error "lastStateChangeId not implemented"}
+  
   connectNode chain $
     HydraNode
       { eq
@@ -805,8 +809,7 @@ createHydraNode ledger nodeState signingKey otherParties outputs outputHistory c
             , contestationPeriod = cp
             , participants
             }
-      , eventSource
-      , eventSinks
+      , persistence
       }
  where
   party = deriveParty signingKey
