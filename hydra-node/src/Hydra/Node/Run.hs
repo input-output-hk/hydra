@@ -103,7 +103,7 @@ run opts = do
           let RunOptions{host, port, peers, nodeId} = opts
               putNetworkEvent (Authenticated msg otherParty) = putEvent $ NetworkEvent defaultTTL otherParty msg
               RunOptions{apiHost, apiPort} = opts
-          apiPersistence <- createPersistenceIncremental $ persistenceDir <> "/server-output"
+          apiPersistence <- createNewPersistenceIncremental $ persistenceDir <> "/server-output"
           withAPIServer apiHost apiPort party apiPersistence (contramap APIServer tracer) chain pparams (putEvent . ClientEvent) $ \server -> do
             -- Network
             let networkConfiguration = NetworkConfiguration{persistenceDir, signingKey, otherParties, host, port, peers, nodeId}
