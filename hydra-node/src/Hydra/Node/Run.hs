@@ -36,7 +36,8 @@ import Hydra.Node (
   createNodeState,
   initEnvironment,
   loadState,
-  runHydraNode, loadStateEventSource,
+  loadStateEventSource,
+  runHydraNode,
  )
 import Hydra.Node.EventQueue (EventQueue (..), createEventQueue)
 import Hydra.Node.Network (NetworkConfiguration (..), withNetwork)
@@ -49,9 +50,9 @@ import Hydra.Options (
   RunOptions (..),
   validateRunOptions,
  )
-import Hydra.Persistence (NewPersistenceIncremental (..), createPersistenceIncremental, eventPairFromPersistenceIncremental, createNewPersistenceIncremental)
+import Hydra.Persistence (NewPersistenceIncremental (..), createNewPersistenceIncremental, createPersistenceIncremental, eventPairFromPersistenceIncremental)
 
-import qualified Data.List.NonEmpty as NE
+import Data.List.NonEmpty qualified as NE
 
 data ConfigurationException
   = ConfigurationException ProtocolParametersConversionError
@@ -83,7 +84,7 @@ run opts = do
 
       withCardanoLedger pparams globals $ \ledger -> do
         -- persistence <- createPersistenceIncremental $ persistenceDir <> "/state"
-        --TODO(Elaine): remove in favor of eventSource/Sink directly
+        -- TODO(Elaine): remove in favor of eventSource/Sink directly
         -- (eventSource, eventSink) <- createEventPairIncremental $ persistenceDir <> "/state"
 
         -- let -- (eventSource, eventSink) = eventPairFromPersistenceIncremental persistence

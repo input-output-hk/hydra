@@ -1,6 +1,6 @@
 {-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 -- | Top-level module to run a single Hydra node.
 --
@@ -14,9 +14,9 @@ import Hydra.Prelude
 import Control.Concurrent.Class.MonadSTM (
   MonadLabelledSTM,
   labelTVarIO,
+  modifyTVar,
   newTVarIO,
   stateTVar,
-  modifyTVar,
  )
 import Control.Monad.Trans.Writer (execWriter, tell)
 import Hydra.API.Server (Server, sendOutput)
@@ -56,7 +56,7 @@ import Hydra.Node.EventQueue (EventQueue (..), Queued (..))
 import Hydra.Node.ParameterMismatch (ParamMismatch (..), ParameterMismatch (..))
 import Hydra.Options (ChainConfig (..), DirectChainConfig (..), RunOptions (..), defaultContestationPeriod)
 import Hydra.Party (Party (..), deriveParty)
-import Hydra.Persistence (PersistenceIncremental (..), NewPersistenceIncremental(..), EventSource(..), EventSink(..), putEventToSinks, putEventsToSinks, NewPersistenceIncremental)
+import Hydra.Persistence (EventSink (..), EventSource (..), NewPersistenceIncremental (..), PersistenceIncremental (..), putEventToSinks, putEventsToSinks)
 
 -- * Environment Handling
 
@@ -148,7 +148,7 @@ data HydraNode tx m = HydraNode
   -- , latestStateChangeId :: TVar m Word64
   -- , eventSource :: EventSource (StateChanged tx) m
   -- , eventSinks :: NonEmpty (EventSink (StateChanged tx) m)
-  --FIXME(Elaine): bundle eventSource,Sinks, latestStateChangeId into a single type for convenience?
+  -- FIXME(Elaine): bundle eventSource,Sinks, latestStateChangeId into a single type for convenience?
   -- they should still definitely be separable too
   }
 
@@ -196,7 +196,7 @@ stepHydraNode tracer node = do
   e@Queued{eventId, queuedEvent} <- nextEvent eq
   traceWith tracer $ BeginEvent{by = party, eventId, event = queuedEvent}
   outcome <- atomically $ do
-    nextStateChangeID <- readTVar . lastStateChangeId $ persistence node-- an event won't necessarily produce a statechange, but if it does, then this'll be its ID
+    nextStateChangeID <- readTVar . lastStateChangeId $ persistence node -- an event won't necessarily produce a statechange, but if it does, then this'll be its ID
     processNextEvent node queuedEvent nextStateChangeID
   traceWith tracer (LogicOutcome party outcome)
   handleOutcome e outcome
@@ -246,16 +246,18 @@ processNextEvent HydraNode{nodeState, ledger, env} e nextStateChangeID = do
   computeOutcome = Logic.update env ledger nextStateChangeID
 
 processNextStateChange ::
-  forall m e tx. (Monad m, MonadSTM m, ToJSON (StateChanged tx)) =>
+  forall m e tx.
+  (Monad m, MonadSTM m, ToJSON (StateChanged tx)) =>
   HydraNode tx m ->
   NonEmpty (EventSink (StateChanged tx) m) ->
   StateChanged tx ->
   m ()
 processNextStateChange HydraNode{persistence} sinks sc = do
   (putEventToSinks @m @(StateChanged tx)) sinks sc
-  atomically $ modifyTVar (lastStateChangeId persistence) (+1)
-  --FIXME(Elaine): put this whole thing in a single `atomically` call
-  -- that should be possible but there's some annoying classy monad transformer types to deal with
+  atomically $ modifyTVar (lastStateChangeId persistence) (+ 1)
+
+-- FIXME(Elaine): put this whole thing in a single `atomically` call
+-- that should be possible but there's some annoying classy monad transformer types to deal with
 
 processEffects ::
   ( MonadAsync m

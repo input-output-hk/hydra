@@ -39,10 +39,8 @@ import Hydra.Node.EventQueue (EventQueue (..), createEventQueue)
 import Hydra.Node.ParameterMismatch (ParameterMismatch (..))
 import Hydra.Options (defaultContestationPeriod)
 import Hydra.Party (Party, deriveParty)
-import Hydra.Persistence (PersistenceIncremental (..), NewPersistenceIncremental (..), eventPairFromPersistenceIncremental, EventSource(..), EventSink(..), createNewPersistenceIncremental)
+import Hydra.Persistence (EventSink (..), EventSource (..), NewPersistenceIncremental (..), PersistenceIncremental (..), createNewPersistenceIncremental, eventPairFromPersistenceIncremental)
 import Test.Hydra.Fixture (alice, aliceSk, bob, bobSk, carol, carolSk, deriveOnChainId, testHeadId, testHeadSeed)
-import Hydra.Persistence (EventSource)
-import Hydra.Persistence (EventSink)
 
 spec :: Spec
 spec = parallel $ do
@@ -250,13 +248,11 @@ createHydraNode ::
   m (HydraNode SimpleTx m)
 createHydraNode =
   createHydraNode' eventSource (eventSink :| [])
-
-
  where
   append = const $ pure ()
   loadAll = pure []
-  eventSource = EventSource {getEvents' = loadAll}
-  eventSink = EventSink {putEvent' = append}
+  eventSource = EventSource{getEvents' = loadAll}
+  eventSink = EventSink{putEvent' = append}
 
 createHydraNode' ::
   (MonadDelay m, MonadAsync m, MonadLabelledSTM m, MonadThrow m) =>
@@ -273,8 +269,8 @@ createHydraNode' eventSource eventSinks signingKey otherParties contestationPeri
   (headState, _) <- loadState nullTracer eventSource SimpleChainState{slot = ChainSlot 0}
   nodeState <- createNodeState headState
 
-  --FIXME(Elaine): initialize last state change ID
-  let persistence = NewPersistenceIncremental {eventSource, eventSinks, lastStateChangeId = error "lastStateChangeId not implemented"}
+  -- FIXME(Elaine): initialize last state change ID
+  let persistence = NewPersistenceIncremental{eventSource, eventSinks, lastStateChangeId = error "lastStateChangeId not implemented"}
 
   pure $
     HydraNode
@@ -323,13 +319,14 @@ recordPersistedItems node = do
         atomically $ modifyTVar lastStateChangeId succ
         record e
   pure
-    ( node{persistence =
-          NewPersistenceIncremental {
-            eventSource = EventSource {getEvents'},
-            eventSinks = EventSink{putEvent'} :| [],
-            lastStateChangeId
-            }
-          }
+    ( node
+        { persistence =
+            NewPersistenceIncremental
+              { eventSource = EventSource{getEvents'}
+              , eventSinks = EventSink{putEvent'} :| []
+              , lastStateChangeId
+              }
+        }
     , query
     )
 
