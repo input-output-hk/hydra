@@ -12,6 +12,7 @@ import Data.ByteString.Char8 qualified as C8
 import System.Directory (createDirectoryIfMissing, doesFileExist)
 import System.FilePath (takeDirectory)
 import UnliftIO.IO.File (withBinaryFile, writeBinaryFileDurableAtomic)
+import Hydra.HeadLogic.Outcome (getStateChangeID, StateChanged (stateChangeID)) --FIXME(Elaine): move this import to whatever is re-exporting StateChanged in Hydra.Preude
 
 data PersistenceException
   = PersistenceException String
@@ -70,10 +71,10 @@ data NewPersistenceIncremental a m = NewPersistenceIncremental
   , lastStateChangeId :: TVar m Word64 -- FIXME(Elaine): name change , persistence captures more than just this
   }
 
-putEventToSinks :: (Monad m, ToJSON e) => NonEmpty (EventSink e m) -> e -> m ()
+putEventToSinks :: forall m e. (Monad m, ToJSON e) => NonEmpty (EventSink e m) -> e -> m ()
 putEventToSinks sinks e = forM_ sinks (\sink -> putEvent' sink e)
 
-putEventsToSinks :: (Monad m, ToJSON e) => NonEmpty (EventSink e m) -> [e] -> m ()
+putEventsToSinks :: forall m e. (Monad m, ToJSON e) => NonEmpty (EventSink e m) -> [e] -> m ()
 putEventsToSinks sinks es = forM_ es (\e -> putEventToSinks sinks e)
 
 -- FIXME(Elaine): this needs to be the reverse, since we need to keep track of the eventID
@@ -98,7 +99,7 @@ createNewPersistenceIncremental ::
 createNewPersistenceIncremental fp = do
   liftIO . createDirectoryIfMissing True $ takeDirectory fp
   authorizedThread <- newTVarIO Nothing
-  lastStateChangeId <- newTVarIO 0
+  lastStateChangeId <- newTVarIO (0 :: Word64)
   -- FIXME(Elaine): eventid too general for this, at least not without writing the eventids to disk, but even then, hacky
   -- we'll have a new ID for each statechanged event, 
   -- i think this is probablyh fine and doesn't need fixing, but wanted to write it down first
@@ -106,7 +107,7 @@ createNewPersistenceIncremental fp = do
   -- we can use this to skip resubmitting events
   -- more complicated solutions would be possible, in particular, rolling hash / merkle chain might be more resilient to corruption
   -- but given that persistence is already atomic and only needs to be consistent within a single node, it should suffice
-  nextId <- newTVarIO 0
+  nextId <- newTVarIO (0 :: Word64)
   let eventSource = EventSource
         { getEvents' = do
             tid <- myThreadId
@@ -128,7 +129,7 @@ createNewPersistenceIncremental fp = do
                 -- set initial nextId (zero-indexed) based on how many state change events we have
                 atomically $ do
                   writeTVar lastStateChangeId $ fromIntegral $ length result
-                  writeTVar nextId $ length result
+                  writeTVar nextId . fromIntegral $ length result
 
                 pure result
         }
@@ -136,7 +137,15 @@ createNewPersistenceIncremental fp = do
         { putEvent' = \a -> do
             threadId <- myThreadId
             isEventNew <- atomically $ do
-              let outgoingStateChangeId = undefined a -- FIXME(Elaine)
+              let stateChangeID = (undefined a) :: Word64
+              -- FIXME(Elaine): we need to put getStateChangeID into a typeclass and add that constraint to a, in the EventSink type
+              -- or we can have separate versions of this for StateChanged, and for network functionality etc
+
+              let outgoingStateChangeId = stateChangeID
+              -- outgoingStateChangeId <- readTVar $ stateChangeID -- this is the ID of the state change we just got from the node
+              -- it's not actually written to disk yet until this function is over
+
+
               id <- readTVar nextId
               writeTVar authorizedThread $ Just threadId
               modifyTVar' nextId succ

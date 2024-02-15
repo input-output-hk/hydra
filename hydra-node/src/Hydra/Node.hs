@@ -1,5 +1,6 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 -- | Top-level module to run a single Hydra node.
 --
@@ -15,6 +16,7 @@ import Control.Concurrent.Class.MonadSTM (
   labelTVarIO,
   newTVarIO,
   stateTVar,
+  modifyTVar,
  )
 import Control.Monad.Trans.Writer (execWriter, tell)
 import Hydra.API.Server (Server, sendOutput)
@@ -193,7 +195,9 @@ stepHydraNode ::
 stepHydraNode tracer node = do
   e@Queued{eventId, queuedEvent} <- nextEvent eq
   traceWith tracer $ BeginEvent{by = party, eventId, event = queuedEvent}
-  outcome <- atomically (processNextEvent node queuedEvent)
+  outcome <- atomically $ do
+    nextStateChangeID <- readTVar . lastStateChangeId $ persistence node-- an event won't necessarily produce a statechange, but if it does, then this'll be its ID
+    processNextEvent node queuedEvent nextStateChangeID
   traceWith tracer (LogicOutcome party outcome)
   handleOutcome e outcome
   processEffects node tracer eventId outcome
@@ -202,7 +206,11 @@ stepHydraNode tracer node = do
   handleOutcome e = \case
     Error _ -> pure ()
     Wait _reason -> putEventAfter eq waitDelay (decreaseTTL e)
-    StateChanged sc -> putEventToSinks eventSinks sc
+    StateChanged sc -> processNextStateChange node eventSinks sc
+    -- stateChangedId <- modifyTVar' latestStateChangeId (+1)
+    -- not all events will produce a statechange
+    -- FIXME(Elaine): if we are going to use eventId instead of stateChangeId, here is where we'd change it
+    -- this FIXME noted only so that we consider this again at review time
     Effects _ -> pure ()
     Combined l r -> handleOutcome e l >> handleOutcome e r
 
@@ -226,15 +234,28 @@ processNextEvent ::
   IsChainState tx =>
   HydraNode tx m ->
   Event tx ->
+  Word64 ->
   STM m (Outcome tx)
-processNextEvent HydraNode{nodeState, ledger, env} e =
+processNextEvent HydraNode{nodeState, ledger, env} e nextStateChangeID = do
   modifyHeadState $ \s ->
     let outcome = computeOutcome s e
      in (outcome, aggregateState s outcome)
  where
   NodeState{modifyHeadState} = nodeState
 
-  computeOutcome = Logic.update env ledger
+  computeOutcome = Logic.update env ledger nextStateChangeID
+
+processNextStateChange ::
+  forall m e tx. (Monad m, MonadSTM m, ToJSON (StateChanged tx)) =>
+  HydraNode tx m ->
+  NonEmpty (EventSink (StateChanged tx) m) ->
+  StateChanged tx ->
+  m ()
+processNextStateChange HydraNode{persistence} sinks sc = do
+  (putEventToSinks @m @(StateChanged tx)) sinks sc
+  atomically $ modifyTVar (lastStateChangeId persistence) (+1)
+  --FIXME(Elaine): put this whole thing in a single `atomically` call
+  -- that should be possible but there's some annoying classy monad transformer types to deal with
 
 processEffects ::
   ( MonadAsync m

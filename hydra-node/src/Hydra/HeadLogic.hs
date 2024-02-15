@@ -141,6 +141,7 @@ onIdleChainInitTx env newChainState headId headSeed headParameters participants
             , chainState = newChainState
             , headId
             , headSeed
+            , stateChangeID = 0
             }
         )
         <> Effects [ClientEffect $ ServerOutput.HeadIsInitializing{headId, parties}]
@@ -682,12 +683,13 @@ update ::
   IsChainState tx =>
   Environment ->
   Ledger tx ->
+  Word64 ->
   -- | Current HeadState to validate the command against.
   HeadState tx ->
   -- | Command sent to the HeadLogic to be processed.
   Event tx ->
   Outcome tx
-update env ledger st ev = case (st, ev) of
+update env ledger nextStateChangeID st ev = case (st, ev) of
   (Idle _, ClientEvent Init) ->
     onIdleClientInit env
   (Idle _, OnChainEvent Observation{observedTx = OnInitTx{headId, headSeed, headParameters, participants}, newChainState}) ->
@@ -742,7 +744,7 @@ update env ledger st ev = case (st, ev) of
   (Closed ClosedState{contestationDeadline, readyToFanoutSent, headId}, OnChainEvent Tick{chainTime})
     | chainTime > contestationDeadline && not readyToFanoutSent ->
         StateChanged
-          HeadIsReadyToFanout
+          HeadIsReadyToFanout{stateChangeID = nextStateChangeID}
           <> Effects [ClientEffect $ ServerOutput.ReadyToFanout headId]
   (Closed closedState, ClientEvent Fanout) ->
     onClosedClientFanout closedState
@@ -946,7 +948,7 @@ aggregate st = \case
          where
           sigs = Map.insert party signature signatories
       _otherState -> st
-  HeadIsReadyToFanout ->
+  HeadIsReadyToFanout{} ->
     case st of
       Closed cst -> Closed cst{readyToFanoutSent = True}
       _otherState -> st
@@ -993,7 +995,7 @@ recoverChainStateHistory initialChainState =
     PartySignedSnapshot{} -> history
     SnapshotConfirmed{} -> history
     HeadClosed{chainState} -> pushNewState chainState history
-    HeadIsReadyToFanout -> history
+    HeadIsReadyToFanout{} -> history
     HeadFannedOut{chainState} -> pushNewState chainState history
     ChainRolledBack{chainState} ->
       rollbackHistory (chainStateSlot chainState) history

@@ -31,7 +31,7 @@ import Hydra.Chain.Direct.State ()
 import Hydra.Logging (Tracer, traceWith)
 import Hydra.Network (IP, PortNumber)
 import Hydra.Party (Party)
-import Hydra.Persistence (PersistenceIncremental (..), NewPersistenceIncremental(..), EventSource(..), EventSink(..), putEventToSinks)
+import Hydra.Persistence (NewPersistenceIncremental(..), EventSource(..), putEventToSinks)
 import Network.Wai.Handler.Warp (
   defaultSettings,
   runSettings,
