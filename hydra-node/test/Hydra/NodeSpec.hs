@@ -44,6 +44,51 @@ import Test.Hydra.Fixture (alice, aliceSk, bob, bobSk, carol, carolSk, deriveOnC
 
 spec :: Spec
 spec = parallel $ do
+  describe "EventSource / EventSink" $ do
+    let createHydraNodeWithSourceAndSinks =
+          createHydraNode' aliceSk [bob, carol] defaultContestationPeriod
+
+    -- TODO: This function does not exist and maybe we want to test rather
+    -- 'loadStateEventSource' instead and we just assume that one is used by the
+    -- main function.
+    describe "loadHydraNode" $ do
+      it "loads events from source into all sinks" $ do
+        someEvents <- generate (arbitrary :: Gen [StateChanged SimpleTx])
+        mockSource <- newMockSource
+        (mockSink1, getMockSinkEvents1) <- newRecordingSink
+        (mockSink2, getMockSinkEvents2) <- newRecordingSink
+
+        node <- createHydraNodeWithSourceAndSinks mockSource [mockSink1, mockSink2]
+        loadHydraNode node
+
+        getMockSinkEvents1 `shouldReturn` someEvents
+        getMockSinkEvents2 `shouldReturn` someEvents
+
+    describe "stepHydraNode" $ do
+      it "events are sent to all sinks" $ do
+        showLogsOnFailure "NodeSpec" $ \tracer -> do
+          mockSource <- newMockSource []
+          (mockSink1, getMockSinkEvents1) <- newRecordingSink
+          (mockSink2, getMockSinkEvents2) <- newRecordingSink
+
+          node <- createHydraNodeWithSourceAndSinks mockSource [mockSink1, mockSink2]
+
+          runToCompletion tracer node
+
+          events <- getMockSinkEvents1
+          events `shouldNotBe` []
+          getMockSinkEvents2 `shouldReturn` events
+
+      it "failing event sink" $ do
+        showLogsOnFailure "NodeSpec" $ \tracer -> do
+          mockSource <- newMockSource []
+          mockSink1 <- newFailingSink
+          (mockSink2, getMockSinkEvents2) <- newRecordingSink
+
+          node <- createHydraNodeWithSourceAndSinks eventsToOpenHead
+
+          runToCompletion tracer node `shouldThrow` undefined
+
   it "emits a single ReqSn and AckSn as leader, even after multiple ReqTxs" $
     showLogsOnFailure "NodeSpec" $ \tracer -> do
       -- NOTE(SN): Sequence of parties in OnInitTx of
