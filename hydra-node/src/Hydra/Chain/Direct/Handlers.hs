@@ -53,6 +53,7 @@ import Hydra.Chain.Direct.State (
   decrement,
   fanout,
   getKnownUTxO,
+  increment,
   initialize,
  )
 import Hydra.Chain.Direct.TimeHandle (TimeHandle (..))
@@ -66,6 +67,7 @@ import Hydra.Chain.Direct.Tx (
   DecrementObservation (..),
   FanoutObservation (..),
   HeadObservation (..),
+  IncrementObservation (..),
   InitObservation (..),
   headSeedToTxIn,
   observeHeadTx,
@@ -173,6 +175,14 @@ mkChain tracer queryTimeHandle wallet@TinyWallet{getUTxO} ctx LocalChainState{ge
             traverse (finalizeTx wallet ctx spendableUTxO (fst <$> utxoToCommit)) $
               commit' ctx headId spendableUTxO utxoToCommit
           else pure $ Left SpendingNodeUtxoForbidden
+    , draftIncrementTx = \headId headParameters snapshot signatures utxoToCommit -> do
+        ChainStateAt{spendableUTxO} <- atomically getLatest
+        -- TODO: somehow use the (script) witnesses from utxoToCommit
+        -- TODO: can we make the user balance the increment tx instead of
+        -- hydra-node? It would shift the payment responsibility to the user
+        traverse
+          (finalizeTx wallet ctx spendableUTxO (fst <$> utxoToCommit))
+          (first FailedToConstructIncrementTx $ increment ctx headId headParameters spendableUTxO snapshot signatures)
     , -- Submit a cardano transaction to the cardano-node using the
       -- LocalTxSubmission protocol.
       submitTx
@@ -326,6 +336,8 @@ convertObservation = \case
     pure OnCommitTx{headId, party, committed}
   CollectCom CollectComObservation{headId} ->
     pure OnCollectComTx{headId}
+  Increment IncrementObservation{headId} ->
+    pure OnIncrementTx{headId}
   Decrement DecrementObservation{headId} ->
     pure OnDecrementTx{headId}
   Close CloseObservation{headId, snapshotNumber, threadOutput = ClosedThreadOutput{closedContestationDeadline}} ->
@@ -376,6 +388,12 @@ prepareTxToPost timeHandle wallet ctx spendableUTxO tx =
       case collect ctx headId headParameters utxo spendableUTxO of
         Left _ -> throwIO (FailedToConstructCollectTx @Tx)
         Right collectTx -> pure collectTx
+    IncrementTx{headId, headParameters, snapshot, signatures} ->
+      -- NOTE: We should not be using the chain to post increment transaction.
+      -- This transactions is drafted using our API endpoint.
+      case increment ctx headId headParameters spendableUTxO snapshot signatures of
+        Left e -> throwIO (FailedToConstructIncrementTx @Tx e)
+        Right incrementTx -> pure incrementTx
     DecrementTx{headId, headParameters, snapshot, signatures} ->
       case decrement ctx headId headParameters spendableUTxO snapshot signatures of
         Left _ -> throwIO (FailedToConstructDecrementTx @Tx)

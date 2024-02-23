@@ -273,6 +273,7 @@ spec = around (showLogsOnFailure "DirectChainSpec") $ do
                     , number = 1
                     , utxo = someUTxO
                     , confirmed = []
+                    , utxoToCommit = Nothing
                     , utxoToDecommit = Nothing
                     }
 
@@ -408,6 +409,7 @@ spec = around (showLogsOnFailure "DirectChainSpec") $ do
                     , number = 1
                     , utxo = someUTxO
                     , confirmed = []
+                    , utxoToCommit = Nothing
                     , utxoToDecommit = Nothing
                     }
             postTx . ContestTx headId headParameters $
@@ -424,6 +426,7 @@ spec = around (showLogsOnFailure "DirectChainSpec") $ do
                     , number = 2
                     , utxo = someUTxO
                     , confirmed = []
+                    , utxoToCommit = Nothing
                     , utxoToDecommit = Nothing
                     }
             let contestAgain =

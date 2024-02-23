@@ -61,6 +61,7 @@ import Hydra.Cluster.Fixture (
 import Hydra.Cluster.Scenarios (
   EndToEndLog (..),
   canCloseWithLongContestationPeriod,
+  canCommit,
   canDecommit,
   canSubmitTransactionThroughAPI,
   headIsInitializingWith,
@@ -198,6 +199,11 @@ spec = around (showLogsOnFailure "EndToEndSpec") $ do
           withCardanoNodeDevnet (contramap FromCardanoNode tracer) tmpDir $ \node ->
             publishHydraScriptsAs node Faucet
               >>= canSubmitTransactionThroughAPI tracer tmpDir node
+      it "can incrementally commit utxo" $ \tracer -> do
+        withClusterTempDir $ \tmpDir -> do
+          withCardanoNodeDevnet (contramap FromCardanoNode tracer) tmpDir $ \node ->
+            publishHydraScriptsAs node Faucet
+              >>= canCommit tracer tmpDir node
       it "can decommit utxo" $ \tracer -> do
         withClusterTempDir $ \tmpDir -> do
           withCardanoNodeDevnet (contramap FromCardanoNode tracer) tmpDir $ \node ->

@@ -8,7 +8,7 @@ import Hydra.Crypto (HydraKey, VerificationKey)
 import Hydra.HeadId (HeadId)
 import Hydra.HeadLogic.Event (Event)
 import Hydra.HeadLogic.State (HeadState)
-import Hydra.Ledger (IsTx (TxIdType), ValidationError)
+import Hydra.Ledger (IsTx (TxIdType, UTxOType), ValidationError)
 import Hydra.Party (Party)
 import Hydra.Snapshot (SnapshotNumber)
 
@@ -41,12 +41,13 @@ data RequirementFailure tx
   | DecommitTxInvalid {decommitTx :: tx, error :: ValidationError}
   | DecommitTxInFlight {decommitTx :: tx}
   | DecommitDoesNotApply {decommitTx :: tx, error :: ValidationError}
+  | CommitInFlight {commitUTxO :: UTxOType tx}
   deriving stock (Generic)
 
-deriving stock instance (Eq tx, Eq (TxIdType tx)) => Eq (RequirementFailure tx)
-deriving stock instance (Show tx, Show (TxIdType tx)) => Show (RequirementFailure tx)
-deriving anyclass instance (ToJSON tx, ToJSON (TxIdType tx)) => ToJSON (RequirementFailure tx)
-deriving anyclass instance (FromJSON tx, FromJSON (TxIdType tx)) => FromJSON (RequirementFailure tx)
+deriving stock instance (Eq tx, Eq (TxIdType tx), Eq (UTxOType tx)) => Eq (RequirementFailure tx)
+deriving stock instance (Show tx, Show (TxIdType tx), Show (UTxOType tx)) => Show (RequirementFailure tx)
+deriving anyclass instance (ToJSON tx, ToJSON (TxIdType tx), ToJSON (UTxOType tx)) => ToJSON (RequirementFailure tx)
+deriving anyclass instance (FromJSON tx, FromJSON (TxIdType tx), FromJSON (UTxOType tx)) => FromJSON (RequirementFailure tx)
 
-instance (Arbitrary tx, Arbitrary (TxIdType tx)) => Arbitrary (RequirementFailure tx) where
+instance (Arbitrary tx, Arbitrary (TxIdType tx), Arbitrary (UTxOType tx)) => Arbitrary (RequirementFailure tx) where
   arbitrary = genericArbitrary

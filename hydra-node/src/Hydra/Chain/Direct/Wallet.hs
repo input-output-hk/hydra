@@ -39,7 +39,7 @@ import Cardano.Ledger.Api (
   rdmrsTxWitsL,
   referenceInputsTxBodyL,
   scriptIntegrityHashTxBodyL,
-  witsTxL,
+  witsTxL, estimateMinFeeTx,
  )
 import Cardano.Ledger.Babbage.Tx (body, getLanguageView, hashScriptIntegrity, wits)
 import Cardano.Ledger.Babbage.Tx qualified as Babbage

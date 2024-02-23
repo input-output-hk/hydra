@@ -98,7 +98,7 @@ import Network.HTTP.Req (
   runReq,
   (/:),
  )
-import Network.HTTP.Simple (httpLbs, setRequestBodyJSON)
+import Network.HTTP.Simple (getResponseBody, httpJSON, httpLbs, setRequestBodyJSON)
 import PlutusLedgerApi.Test.Examples qualified as Plutus
 import System.Directory (removeDirectoryRecursive)
 import System.FilePath ((</>))
@@ -624,6 +624,59 @@ initWithWrongKeys workDir tracer node@RunningNode{nodeSocket} hydraScriptsTxId =
         v ^? key "participants" . _JSON
 
       participants `shouldMatchList` expectedParticipants
+
+-- | Open a a single participant head with some UTxO and then commit some UTxO to a running Head.
+canCommit :: Tracer IO EndToEndLog -> FilePath -> RunningNode -> TxId -> IO ()
+canCommit tracer workDir node hydraScriptsTxId =
+  (`finally` returnFundsToFaucet tracer node Alice) $ do
+    refuelIfNeeded tracer node Alice 30_000_000
+    -- Start hydra-node on chain tip
+    tip <- queryTip networkId nodeSocket
+    let contestationPeriod = UnsafeContestationPeriod 100
+    aliceChainConfig <-
+      chainConfigFor Alice workDir nodeSocket hydraScriptsTxId [] contestationPeriod
+        <&> \case
+          Direct cfg -> Direct cfg{networkId, startChainFrom = Just tip}
+          _ -> error "Should not be in offline mode"
+    withHydraNode hydraTracer aliceChainConfig workDir 1 aliceSk [] [1] $ \n1@HydraClient{hydraNodeId} -> do
+      -- Setup an open head
+      send n1 $ input "Init" []
+      headId <- waitMatch 10 n1 $ headIsInitializingWith (Set.fromList [alice])
+      (walletVk, walletSk) <- generate genKeyPair
+      commitUTxO <- seedFromFaucet node walletVk 10_000_000 (contramap FromFaucet tracer)
+      requestCommitTx n1 commitUTxO <&> signTx walletSk >>= submitTx node
+      waitFor hydraTracer 10 [n1] $
+        output "HeadIsOpen" ["utxo" .= commitUTxO, "headId" .= headId]
+
+      -- Incrementally commit utxo to the head
+      incrementalCommitUTxO <- seedFromFaucet node walletVk 5_000_000 (contramap FromFaucet tracer)
+
+      incrementTx <-
+        L.parseUrlThrow ("POST http://127.0.0.1:" <> show (4000 + hydraNodeId) <> "/commit")
+          <&> setRequestBodyJSON incrementalCommitUTxO
+            >>= httpJSON
+          <&> getResponseBody
+      -- Requesting the commit above would already trigger these server outputs.
+      -- Hence, when we return from the API call, these outputs must already
+      -- have been received on the websocket.
+      -- TODO: could concurrently wait for this and the server outputs instead of these short timeouts
+      waitFor hydraTracer 0.1 [n1] $
+        output "CommitRequested" ["headId" .= headId, "utxoToCommit" .= incrementalCommitUTxO]
+      waitFor hydraTracer 0.1 [n1] $
+        output "CommitApproved" ["headId" .= headId, "utxoToCommit" .= incrementalCommitUTxO]
+
+      -- Submitting the transaction will finalize the commit (and enable more commits)
+      submitTx node $ signTx walletSk incrementTx
+      waitFor hydraTracer 10 [n1] $
+        output "CommitFinalized" ["headId" .= headId]
+
+      send n1 $ input "GetUTxO" []
+      waitFor hydraTracer 10 [n1] $
+        output "GetUTxOResponse" ["headId" .= headId, "utxo" .= (commitUTxO <> incrementalCommitUTxO)]
+ where
+  hydraTracer = contramap FromHydraNode tracer
+
+  RunningNode{networkId, nodeSocket} = node
 
 -- | Open a a single participant head with some UTxO and decommit parts of it.
 canDecommit :: Tracer IO EndToEndLog -> FilePath -> RunningNode -> TxId -> IO ()

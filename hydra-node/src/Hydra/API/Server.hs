@@ -5,8 +5,8 @@ module Hydra.API.Server where
 import Hydra.Prelude hiding (TVar, readTVar, seq)
 
 import Cardano.Ledger.Core (PParams)
+import Control.Concurrent.Class.MonadSTM (newBroadcastTChanIO, writeTChan)
 import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
-import Control.Concurrent.STM.TChan (newBroadcastTChanIO, writeTChan)
 import Control.Concurrent.STM.TVar (modifyTVar', newTVarIO)
 import Control.Exception (IOException)
 import Hydra.API.APIServerLog (APIServerLog (..))
@@ -17,17 +17,19 @@ import Hydra.API.ServerOutput (
   HeadStatus (Idle),
   ServerOutput,
   TimedServerOutput (..),
+  projectHeadId,
   projectHeadStatus,
-  projectInitializingHeadId,
   projectSnapshotUtxo,
  )
+import Hydra.API.Subscription (setupSubscriptions)
 import Hydra.API.WSServer (nextSequenceNumber, wsApp)
 import Hydra.Cardano.Api (LedgerEra)
 import Hydra.Chain (
   Chain (..),
-  IsChainState,
  )
 import Hydra.Chain.Direct.State ()
+import Hydra.HeadLogic.State (Environment)
+import Hydra.Ledger.Cardano (Tx)
 import Hydra.Logging (Tracer, traceWith)
 import Hydra.Network (IP, PortNumber)
 import Hydra.Party (Party)
@@ -58,17 +60,16 @@ type ServerCallback tx m = ClientInput tx -> m ()
 type ServerComponent tx m a = ServerCallback tx m -> (Server tx m -> m a) -> m a
 
 withAPIServer ::
-  forall tx.
-  IsChainState tx =>
+  Environment ->
   IP ->
   PortNumber ->
   Party ->
-  PersistenceIncremental (TimedServerOutput tx) IO ->
+  PersistenceIncremental (TimedServerOutput Tx) IO ->
   Tracer IO APIServerLog ->
-  Chain tx IO ->
+  Chain Tx IO ->
   PParams LedgerEra ->
-  ServerComponent tx IO ()
-withAPIServer host port party PersistenceIncremental{loadAll, append} tracer chain pparams callback action =
+  ServerComponent Tx IO ()
+withAPIServer env host port party PersistenceIncremental{loadAll, append} tracer chain pparams callback action =
   handle onIOException $ do
     responseChannel <- newBroadcastTChanIO
     timedOutputEvents <- loadAll
@@ -76,7 +77,8 @@ withAPIServer host port party PersistenceIncremental{loadAll, append} tracer cha
     -- Intialize our read model from stored events
     headStatusP <- mkProjection Idle (output <$> timedOutputEvents) projectHeadStatus
     snapshotUtxoP <- mkProjection Nothing (output <$> timedOutputEvents) projectSnapshotUtxo
-    headIdP <- mkProjection Nothing (output <$> timedOutputEvents) projectInitializingHeadId
+    headIdP <- mkProjection Nothing (output <$> timedOutputEvents) projectHeadId
+    (subscriber, updateWaiters) <- setupSubscriptions
 
     -- NOTE: we need to reverse the list because we store history in a reversed
     -- list in memory but in order on disk
@@ -96,7 +98,7 @@ withAPIServer host port party PersistenceIncremental{loadAll, append} tracer cha
             websocketsOr
               defaultConnectionOptions
               (wsApp party tracer history callback headStatusP snapshotUtxoP responseChannel)
-              (httpApp tracer chain pparams (getLatest headIdP) callback)
+              (httpApp env tracer chain pparams (getLatest headIdP) callback subscriber)
       )
       ( do
           waitForServerRunning
@@ -108,6 +110,7 @@ withAPIServer host port party PersistenceIncremental{loadAll, append} tracer cha
                     update headStatusP output
                     update snapshotUtxoP output
                     update headIdP output
+                    updateWaiters output
                     writeTChan responseChannel timedOutput
               }
       )
@@ -139,6 +142,8 @@ data RunServerException = RunServerException
   deriving stock (Show)
 
 instance Exception RunServerException
+
+-- * Utilities
 
 type NotifyServerRunning = IO ()
 

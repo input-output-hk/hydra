@@ -48,23 +48,24 @@ instance IsChainState tx => FromJSON (TimedServerOutput tx) where
   parseJSON v = flip (withObject "TimedServerOutput") v $ \o ->
     TimedServerOutput <$> parseJSON v <*> o .: "seq" <*> o .: "timestamp"
 
-data DecommitInvalidReason tx
-  = DecommitTxInvalid {confirmedUTxO :: UTxOType tx, decommitTx :: tx, validationError :: ValidationError}
-  | DecommitAlreadyInFlight {decommitTx :: tx}
+data InvalidReason tx
+  = TransactionInvalid {confirmedUTxO :: UTxOType tx, transaction :: tx, validationError :: ValidationError}
+  | TransactionAlreadyInFlight {transaction :: tx}
+  | UTxOAlreadyInFlight {incrementUTxO :: UTxOType tx}
   deriving stock (Generic)
 
-deriving stock instance (Eq tx, Eq (UTxOType tx)) => Eq (DecommitInvalidReason tx)
-deriving stock instance (Show tx, Show (UTxOType tx)) => Show (DecommitInvalidReason tx)
+deriving stock instance (Eq tx, Eq (UTxOType tx)) => Eq (InvalidReason tx)
+deriving stock instance (Show tx, Show (UTxOType tx)) => Show (InvalidReason tx)
 
-instance (ToJSON tx, ToJSON (UTxOType tx)) => ToJSON (DecommitInvalidReason tx) where
+instance (ToJSON tx, ToJSON (UTxOType tx)) => ToJSON (InvalidReason tx) where
   toJSON = genericToJSON defaultOptions
 
-instance (FromJSON tx, FromJSON (UTxOType tx)) => FromJSON (DecommitInvalidReason tx) where
+instance (FromJSON tx, FromJSON (UTxOType tx)) => FromJSON (InvalidReason tx) where
   parseJSON = genericParseJSON defaultOptions
 
 instance
   IsTx tx =>
-  Arbitrary (DecommitInvalidReason tx)
+  Arbitrary (InvalidReason tx)
   where
   arbitrary = genericArbitrary
 
@@ -119,9 +120,13 @@ data ServerOutput tx
       , participants :: [OnChainId]
       }
   | DecommitRequested {headId :: HeadId, utxoToDecommit :: UTxOType tx}
-  | DecommitInvalid {headId :: HeadId, decommitInvalidReason :: DecommitInvalidReason tx}
+  | DecommitInvalid {headId :: HeadId, decommitInvalidReason :: InvalidReason tx}
   | DecommitApproved {headId :: HeadId, utxoToDecommit :: UTxOType tx}
   | DecommitFinalized {headId :: HeadId}
+  | CommitRequested {headId :: HeadId, utxoToCommit :: UTxOType tx}
+  | CommitInvalid {headId :: HeadId, commitInvalidReason :: InvalidReason tx}
+  | CommitApproved {headId :: HeadId, utxoToCommit :: UTxOType tx}
+  | CommitFinalized {headId :: HeadId}
   deriving stock (Generic)
 
 deriving stock instance IsChainState tx => Eq (ServerOutput tx)
@@ -181,6 +186,10 @@ instance
     DecommitInvalid headId reason -> DecommitInvalid <$> shrink headId <*> shrink reason
     DecommitApproved headId u -> DecommitApproved <$> shrink headId <*> shrink u
     DecommitFinalized headId -> DecommitFinalized <$> shrink headId
+    CommitRequested headId u -> CommitRequested <$> shrink headId <*> shrink u
+    CommitInvalid headId reason -> CommitInvalid <$> shrink headId <*> shrink reason
+    CommitApproved headId u -> CommitApproved <$> shrink headId <*> shrink u
+    CommitFinalized headId -> CommitFinalized <$> shrink headId
 
 -- | Whether or not to include full UTxO in server outputs.
 data WithUTxO = WithUTxO | WithoutUTxO
@@ -232,6 +241,10 @@ prepareServerOutput ServerOutputConfig{utxoInSnapshot} response =
     DecommitApproved{} -> encodedResponse
     DecommitFinalized{} -> encodedResponse
     DecommitInvalid{} -> encodedResponse
+    CommitRequested{} -> encodedResponse
+    CommitInvalid{} -> encodedResponse
+    CommitApproved{} -> encodedResponse
+    CommitFinalized{} -> encodedResponse
  where
   handleUtxoInclusion f bs =
     case utxoInSnapshot of
@@ -256,11 +269,11 @@ instance Arbitrary HeadStatus where
 
 -- | Projection to obtain the 'HeadId' needed to draft a commit transaction.
 -- NOTE: We only want to project 'HeadId' when the Head is in the 'Initializing'
--- state since this is when Head parties need to commit some funds.
-projectInitializingHeadId :: Maybe HeadId -> ServerOutput tx -> Maybe HeadId
-projectInitializingHeadId mHeadId = \case
-  HeadIsInitializing{headId} -> Just headId
-  HeadIsOpen{} -> Nothing
+-- or 'Open' state since this is when Head parties can commit/increment some funds.
+projectHeadId :: Maybe (Either HeadId HeadId) -> ServerOutput tx -> Maybe (Either HeadId HeadId)
+projectHeadId mHeadId = \case
+  HeadIsInitializing{headId} -> Just (Left headId)
+  HeadIsOpen{headId} -> Just (Right headId)
   HeadIsAborted{} -> Nothing
   _other -> mHeadId
 

@@ -37,6 +37,7 @@ data State
       { parties :: [Party]
       , snapshotNumber :: SnapshotNumber
       , utxoHash :: Hash
+      , utxoToCommitHash :: Hash
       , utxoToDecommitHash :: Hash
       , contestationDeadline :: POSIXTime
       , contestationPeriod :: ContestationPeriod
@@ -50,6 +51,9 @@ PlutusTx.unstableMakeIsData ''State
 
 data Input
   = CollectCom
+  | Increment
+      { signature :: [Signature]
+      }
   | Decrement
       { signature :: [Signature]
       }

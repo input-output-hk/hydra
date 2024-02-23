@@ -20,7 +20,7 @@ data Connectivity
 
 data Message tx
   = ReqTx {transaction :: tx}
-  | ReqSn {snapshotNumber :: SnapshotNumber, transactionIds :: [TxIdType tx], decommitTx :: Maybe tx}
+  | ReqSn {snapshotNumber :: SnapshotNumber, transactionIds :: [TxIdType tx], commitUTxO :: Maybe (UTxOType tx), decommitTx :: Maybe tx}
   | -- NOTE: We remove the party from the ackSn but, it would make sense to put it
     -- back as the signed snapshot is tied to the party and we should not
     -- consider which party sent this message to validate this snapshot signature.
@@ -31,6 +31,7 @@ data Message tx
     -- the verification key of the party.
     AckSn {signed :: Signature (Snapshot tx), snapshotNumber :: SnapshotNumber}
   | ReqDec {transaction :: tx, decommitRequester :: Party}
+  | ReqInc {incrementUTxO :: UTxOType tx, commitRequester :: Party}
   deriving stock (Generic)
 
 deriving stock instance IsTx tx => Eq (Message tx)
@@ -44,17 +45,19 @@ instance IsTx tx => Arbitrary (Message tx) where
 instance (ToCBOR tx, ToCBOR (UTxOType tx), ToCBOR (TxIdType tx)) => ToCBOR (Message tx) where
   toCBOR = \case
     ReqTx tx -> toCBOR ("ReqTx" :: Text) <> toCBOR tx
-    ReqSn sn txs decommitTx -> toCBOR ("ReqSn" :: Text) <> toCBOR sn <> toCBOR txs <> toCBOR decommitTx
+    ReqSn sn txs commitTx decommitTx -> toCBOR ("ReqSn" :: Text) <> toCBOR sn <> toCBOR txs <> toCBOR commitTx <> toCBOR decommitTx
     AckSn sig sn -> toCBOR ("AckSn" :: Text) <> toCBOR sig <> toCBOR sn
     ReqDec utxo requester -> toCBOR ("ReqDec" :: Text) <> toCBOR utxo <> toCBOR requester
+    ReqInc utxo requester -> toCBOR ("ReqInc" :: Text) <> toCBOR utxo <> toCBOR requester
 
 instance (FromCBOR tx, FromCBOR (UTxOType tx), FromCBOR (TxIdType tx)) => FromCBOR (Message tx) where
   fromCBOR =
     fromCBOR >>= \case
       ("ReqTx" :: Text) -> ReqTx <$> fromCBOR
-      "ReqSn" -> ReqSn <$> fromCBOR <*> fromCBOR <*> fromCBOR
+      "ReqSn" -> ReqSn <$> fromCBOR <*> fromCBOR <*> fromCBOR <*> fromCBOR
       "AckSn" -> AckSn <$> fromCBOR <*> fromCBOR
       "ReqDec" -> ReqDec <$> fromCBOR <*> fromCBOR
+      "ReqInc" -> ReqInc <$> fromCBOR <*> fromCBOR
       msg -> fail $ show msg <> " is not a proper CBOR-encoded Message"
 
 instance IsTx tx => SignableRepresentation (Message tx) where

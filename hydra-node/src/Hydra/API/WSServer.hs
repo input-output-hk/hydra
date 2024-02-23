@@ -12,6 +12,7 @@ import Data.Aeson qualified as Aeson
 import Data.Version (showVersion)
 import Hydra.API.APIServerLog (APIServerLog (..))
 import Hydra.API.ClientInput (ClientInput)
+import Hydra.Ledger.Cardano (Tx)
 import Hydra.API.Projection (Projection (..))
 import Hydra.API.ServerOutput (
   HeadStatus,
@@ -51,7 +52,7 @@ wsApp ::
   Party ->
   Tracer IO APIServerLog ->
   TVar [TimedServerOutput tx] ->
-  (ClientInput tx -> IO ()) ->
+  (ClientInput Tx -> IO ()) ->
   -- | Read model to enhance 'Greetings' messages with 'HeadStatus'.
   Projection STM.STM (ServerOutput tx) HeadStatus ->
   -- | Read model to enhance 'Greetings' messages with snapshot UTxO.

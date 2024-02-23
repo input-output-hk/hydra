@@ -1124,6 +1124,19 @@ definitions:
             $ref: "api.yaml#/components/schemas/Transaction"
           error:
             $ref: "logs.yaml#/definitions/ValidationError"
+      - title: "CommitInFlight"
+        description: >-
+          Received a Commit request but there is a previous commit that is still not resolved.
+        additionalProperties: false
+        required:
+          - tag
+          - commitUTxO
+        properties:
+          tag:
+            type: string
+            enum: ["CommitInFlight"]
+          commitUTxO:
+            $ref: "api.yaml#/components/schemas/UTxO"
 
   HeadState:
     oneOf:
@@ -1295,6 +1308,18 @@ definitions:
             enum: ["TransactionReceived"]
           tx:
             $ref: "api.yaml#/components/schemas/Transaction"
+      - title: "CommitRecorded"
+        additionalProperties: false
+        required:
+          - tag
+          - commitUTxO
+        properties:
+          tag:
+            type: string
+            enum: ["CommitRecorded"]
+          commitUTxO:
+            type: object
+            $ref: "api.yaml#/components/schemas/UTxO"
       - title: "DecommitRecorded"
         additionalProperties: false
         required:
@@ -1307,6 +1332,14 @@ definitions:
           decommitTx:
             type: object
             $ref: "api.yaml#/components/schemas/Transaction"
+      - title: "CommitFinalized"
+        additionalProperties: false
+        required:
+          - tag
+        properties:
+          tag:
+            type: string
+            enum: ["CommitFinalized"]
       - title: "DecommitFinalized"
         additionalProperties: false
         required:
@@ -1512,6 +1545,7 @@ definitions:
       - allTxs
       - confirmedSnapshot
       - seenSnapshot
+      - commitUTxO
       - decommitTx
     properties:
       localUTxO:
@@ -1530,8 +1564,14 @@ definitions:
         $ref: "api.yaml#/components/schemas/ConfirmedSnapshot"
       seenSnapshot:
         $ref: "logs.yaml#/definitions/SeenSnapshot"
+      commitUTxO:
+        oneOf:
+          - type: "null"
+          - $ref: "api.yaml#/components/schemas/UTxO"
       decommitTx:
-        $ref: "api.yaml#/components/schemas/Transaction"
+        oneOf:
+          - type: "null"
+          - $ref: "api.yaml#/components/schemas/Transaction"
 
   SeenSnapshot:
     oneOf:
@@ -1617,6 +1657,7 @@ definitions:
               - $ref: "api.yaml#/components/messages/Init/payload"
               - $ref: "api.yaml#/components/messages/Abort/payload"
               - $ref: "api.yaml#/components/messages/NewTx/payload"
+              - $ref: "api.yaml#/components/messages/Commit/payload"
               - $ref: "api.yaml#/components/messages/Decommit/payload"
               - $ref: "api.yaml#/components/messages/GetUTxO/payload"
               - $ref: "api.yaml#/components/messages/Close/payload"
@@ -1702,7 +1743,6 @@ definitions:
           - tag
           - snapshotNumber
           - transactionIds
-          - decommitTx
         description: >-
           Request from the current snapshot leader to sign some snapshot, eg. a
           bunch of transaction ids.
@@ -1716,11 +1756,14 @@ definitions:
             type: array
             items:
               $ref: "api.yaml#/components/schemas/TxId"
+          commitUTxO:
+            oneOf:
+              - $ref: "api.yaml#/components/schemas/UTxO"
+              - type: "null"
           decommitTx:
-           oneOf:
-            - type: "null"
-            - type: object
-              $ref: "api.yaml#/components/schemas/Transaction"
+            oneOf:
+             - $ref: "api.yaml#/components/schemas/Transaction"
+             - type: "null"
 
       - title: AckSn
         type: object
@@ -1744,6 +1787,25 @@ definitions:
             description: >-
               Signature from given party of the snapshot. The bytes representing
               the signature are hex-encoded.
+      - title: ReqInc
+        type: object
+        additionalProperties: false
+        required:
+          - tag
+          - incrementUTxO
+          - commitRequester
+        description: >-
+          Notify the peers about the request to commit some funds to the Head.
+        properties:
+          tag:
+            type: string
+            enum: ["ReqInc"]
+          incrementUTxO:
+            type: object
+            $ref: "api.yaml#/components/schemas/UTxO"
+          commitRequester:
+            type: object
+            $ref: "api.yaml#/components/schemas/Party"
       - title: ReqDec
         type: object
         additionalProperties: false
@@ -1893,6 +1955,18 @@ definitions:
           tag:
             type: string
             enum: ["OnAbortTx"]
+          headId:
+            $ref: "api.yaml#/components/schemas/HeadId"
+      - title: OnIncrementTx
+        type: object
+        additionalProperties: false
+        required:
+          - tag
+          - headId
+        properties:
+          tag:
+            type: string
+            enum: ["OnIncrementTx"]
           headId:
             $ref: "api.yaml#/components/schemas/HeadId"
       - title: OnDecrementTx

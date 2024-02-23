@@ -73,6 +73,7 @@ headValidator oldState input ctx =
       checkCollectCom ctx (contestationPeriod, parties, headId)
     (Initial{parties, headId}, Abort) ->
       checkAbort ctx headId parties
+    (Open{}, Increment{}) -> checkIncrement
     (Open{parties, contestationPeriod, snapshotNumber, headId}, Decrement{signature}) -> checkDecrement ctx parties snapshotNumber contestationPeriod headId signature
     (Open{parties, utxoHash = initialUtxoHash, contestationPeriod, headId}, Close{signature}) ->
       checkClose ctx parties initialUtxoHash signature contestationPeriod headId
@@ -227,6 +228,10 @@ commitDatum input = do
     Nothing -> []
 {-# INLINEABLE commitDatum #-}
 
+checkIncrement :: Bool
+checkIncrement = True
+{-# INLINEABLE checkIncrement #-}
+
 checkDecrement ::
   ScriptContext ->
   [Party] ->
@@ -308,25 +313,26 @@ checkClose ctx parties initialUtxoHash sig cperiod headPolicyId =
     traceIfFalse $(errorCode HasBoundedValidityCheckFailed) $
       tMax - tMin <= cp
 
-  (closedSnapshotNumber, closedUtxoHash, decommitHash, parties', closedContestationDeadline, cperiod', headId', contesters') =
+  (closedSnapshotNumber, closedUtxoHash, commitHash, decommitHash, parties', closedContestationDeadline, cperiod', headId', contesters') =
     -- XXX: fromBuiltinData is super big (and also expensive?)
     case fromBuiltinData @DatumType $ getDatum (headOutputDatum ctx) of
       Just
         Closed
           { snapshotNumber
           , utxoHash
+          , utxoToCommitHash
           , utxoToDecommitHash
           , parties = p
           , contestationDeadline
           , headId
           , contesters
           , contestationPeriod
-          } -> (snapshotNumber, utxoHash, utxoToDecommitHash, p, contestationDeadline, contestationPeriod, headId, contesters)
+          } -> (snapshotNumber, utxoHash, utxoToCommitHash, utxoToDecommitHash, p, contestationDeadline, contestationPeriod, headId, contesters)
       _ -> traceError $(errorCode WrongStateInOutputDatum)
 
   checkSnapshot
     | closedSnapshotNumber > 0 =
-        verifySnapshotSignature parties headPolicyId closedSnapshotNumber closedUtxoHash decommitHash sig
+        verifySnapshotSignature parties headPolicyId closedSnapshotNumber closedUtxoHash commitHash decommitHash sig
     | otherwise =
         traceIfFalse $(errorCode ClosedWithNonInitialHash) $
           closedUtxoHash == initialUtxoHash
@@ -419,7 +425,7 @@ checkContest ctx contestationDeadline contestationPeriod parties closedSnapshotN
       contestSnapshotNumber > closedSnapshotNumber
 
   mustBeMultiSigned =
-    verifySnapshotSignature parties headId contestSnapshotNumber contestUtxoHash decommitHash sig
+    verifySnapshotSignature parties headId contestSnapshotNumber contestUtxoHash commitHash decommitHash sig
 
   mustBeWithinContestationPeriod =
     case ivTo (txInfoValidRange txInfo) of
@@ -447,20 +453,21 @@ checkContest ctx contestationDeadline contestationPeriod parties closedSnapshotN
     traceIfFalse $(errorCode ContesterNotIncluded) $
       contesters' == contester : contesters
 
-  (contestSnapshotNumber, contestUtxoHash, decommitHash, parties', contestationDeadline', contestationPeriod', headId', contesters') =
+  (contestSnapshotNumber, contestUtxoHash, commitHash, decommitHash, parties', contestationDeadline', contestationPeriod', headId', contesters') =
     -- XXX: fromBuiltinData is super big (and also expensive?)
     case fromBuiltinData @DatumType $ getDatum (headOutputDatum ctx) of
       Just
         Closed
           { snapshotNumber
           , utxoHash
+          , utxoToCommitHash
           , utxoToDecommitHash
           , parties = p
           , contestationDeadline = dl
           , contestationPeriod = cp
           , headId = hid
           , contesters = cs
-          } -> (snapshotNumber, utxoHash, utxoToDecommitHash, p, dl, cp, hid, cs)
+          } -> (snapshotNumber, utxoHash, utxoToCommitHash, utxoToDecommitHash, p, dl, cp, hid, cs)
       _ -> traceError $(errorCode WrongStateInOutputDatum)
 
   ScriptContext{scriptContextTxInfo = txInfo} = ctx
@@ -622,16 +629,16 @@ hasPT headCurrencySymbol txOut =
    in length pts == 1
 {-# INLINEABLE hasPT #-}
 
-verifySnapshotSignature :: [Party] -> CurrencySymbol -> SnapshotNumber -> BuiltinByteString -> BuiltinByteString -> [Signature] -> Bool
-verifySnapshotSignature parties headId snapshotNumber utxoHash utxoToDecommitHash sigs =
+verifySnapshotSignature :: [Party] -> CurrencySymbol -> SnapshotNumber -> BuiltinByteString -> BuiltinByteString -> BuiltinByteString -> [Signature] -> Bool
+verifySnapshotSignature parties headId snapshotNumber utxoHash utxoToCommitHash utxoToDecommitHash sigs =
   traceIfFalse $(errorCode SignatureVerificationFailed) $
     length parties
       == length sigs
-      && all (uncurry $ verifyPartySignature headId snapshotNumber utxoHash utxoToDecommitHash) (zip parties sigs)
+      && all (uncurry $ verifyPartySignature headId snapshotNumber utxoHash utxoToCommitHash utxoToDecommitHash) (zip parties sigs)
 {-# INLINEABLE verifySnapshotSignature #-}
 
-verifyPartySignature :: CurrencySymbol -> SnapshotNumber -> BuiltinByteString -> BuiltinByteString -> Party -> Signature -> Bool
-verifyPartySignature headId snapshotNumber utxoHash utxoToDecommitHash party signed =
+verifyPartySignature :: CurrencySymbol -> SnapshotNumber -> BuiltinByteString -> BuiltinByteString -> BuiltinByteString -> Party -> Signature -> Bool
+verifyPartySignature headId snapshotNumber utxoHash utxoToCommitHash utxoToDecommitHash party signed =
   traceIfFalse $(errorCode PartySignatureVerificationFailed) $
     verifyEd25519Signature (vkey party) message signed
  where
@@ -640,6 +647,7 @@ verifyPartySignature headId snapshotNumber utxoHash utxoToDecommitHash party sig
     Builtins.serialiseData (toBuiltinData headId)
       <> Builtins.serialiseData (toBuiltinData snapshotNumber)
       <> Builtins.serialiseData (toBuiltinData utxoHash)
+      <> Builtins.serialiseData (toBuiltinData utxoToCommitHash)
       <> Builtins.serialiseData (toBuiltinData utxoToDecommitHash)
 {-# INLINEABLE verifyPartySignature #-}
 

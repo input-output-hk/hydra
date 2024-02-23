@@ -284,6 +284,7 @@ aggregateHeadObservations observations currentState =
       OnAbortTx{headId} -> aggregateAbortObservation headId explorerState
       OnCommitTx{headId, party, committed} -> aggregateCommitObservation headId party committed explorerState
       OnCollectComTx{headId} -> aggregateCollectComObservation headId explorerState
+      OnIncrementTx{headId} -> aggregateCollectComObservation headId explorerState
       OnDecrementTx{headId} -> aggregateCollectComObservation headId explorerState
       OnCloseTx{headId, snapshotNumber, contestationDeadline} -> aggregateCloseObservation headId snapshotNumber contestationDeadline explorerState
       OnContestTx{headId, snapshotNumber} -> aggregateContestObservation headId snapshotNumber explorerState

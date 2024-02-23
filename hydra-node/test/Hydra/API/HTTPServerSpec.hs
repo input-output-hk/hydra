@@ -6,25 +6,25 @@ import Test.Hydra.Prelude
 import Data.Aeson (Result (Error, Success), eitherDecode, encode, fromJSON)
 import Data.Aeson.Lens (key, nth)
 import Hydra.API.HTTPServer (DraftCommitTxRequest, DraftCommitTxResponse, SubmitTxRequest (..), TransactionSubmitted, httpApp)
+import Hydra.API.ServerOutput (ServerOutput (CommitFinalized))
 import Hydra.API.ServerSpec (dummyChainHandle)
 import Hydra.Cardano.Api (fromLedgerPParams, serialiseToTextEnvelope, shelleyBasedEra)
 import Hydra.Chain.Direct.Fixture (defaultPParams)
+import Hydra.HeadLogic.State (Environment (..))
 import Hydra.JSONSchema (SchemaSelector, prop_validateJSONSchema, validateJSON, withJsonSpecifications)
 import Hydra.Ledger.Cardano (Tx)
-import Hydra.Ledger.Simple (SimpleTx)
 import Hydra.Logging (nullTracer)
+import Hydra.Options (defaultContestationPeriod)
 import System.FilePath ((</>))
 import System.IO.Unsafe (unsafePerformIO)
 import Test.Aeson.GenericSpecs (roundtripAndGoldenSpecs)
 import Test.Hspec.Wai (MatchBody (..), ResponseMatcher (matchBody), get, shouldRespondWith, with)
-import Test.QuickCheck.Property
-    ( counterexample,
-      forAll,
-      property,
-      counterexample,
-      forAll,
-      property,
-      )
+import Test.Hydra.Fixture (testHeadId)
+import Test.QuickCheck.Property (
+  counterexample,
+  forAll,
+  property,
+ )
 
 spec :: Spec
 spec = do
@@ -111,7 +111,16 @@ apiServerSpec = do
               { matchBody = matchJSON $ fromLedgerPParams shelleyBasedEra defaultPParams
               }
  where
-  webServer = httpApp @SimpleTx nullTracer dummyChainHandle defaultPParams getHeadId putClientInput
+  webServer = httpApp defaultEnv nullTracer dummyChainHandle defaultPParams getHeadId putClientInput (pure dummyServerOutput)
+  dummyServerOutput = pure $ CommitFinalized testHeadId
+  defaultEnv =
+    Environment
+      { party = error "party should not be needed"
+      , signingKey = error "signingKey should not be needed"
+      , otherParties = []
+      , contestationPeriod = defaultContestationPeriod
+      , participants = error "participants should not be needed"
+      }
   putClientInput _ = failure "unexpected call to putClientInput"
   getHeadId = failure "unexpected call to getHeadId"
 

@@ -100,6 +100,7 @@ healthySnapshot =
         , number = succ healthySnapshotNumber
         , utxo
         , confirmed = []
+        , utxoToCommit = Nothing
         , utxoToDecommit = Just utxoToDecommit'
         }
 

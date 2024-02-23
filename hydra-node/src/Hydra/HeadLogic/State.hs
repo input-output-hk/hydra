@@ -180,6 +180,9 @@ data CoordinatedHeadState tx = CoordinatedHeadState
   , decommitTx :: Maybe tx
   -- ^ Client requested to decommit a 'UTxO' which is present in the
   -- 'ConfirmedSnapshot'.
+  , commitUTxO :: Maybe (UTxOType tx)
+  -- ^ Client requested to commit a 'UTxO' which is present in the
+  -- 'ConfirmedSnapshot'.
   }
   deriving stock (Generic)
 

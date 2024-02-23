@@ -67,6 +67,12 @@ data PostChainTx tx
   = InitTx {participants :: [OnChainId], headParameters :: HeadParameters}
   | AbortTx {utxo :: UTxOType tx, headSeed :: HeadSeed}
   | CollectComTx {utxo :: UTxOType tx, headId :: HeadId, headParameters :: HeadParameters}
+  | IncrementTx
+      { headId :: HeadId
+      , headParameters :: HeadParameters
+      , snapshot :: Snapshot tx
+      , signatures :: MultiSignature (Snapshot tx)
+      }
   | DecrementTx
       { headId :: HeadId
       , headParameters :: HeadParameters
@@ -89,6 +95,8 @@ instance IsTx tx => Arbitrary (PostChainTx tx) where
     InitTx{participants, headParameters} -> InitTx <$> shrink participants <*> shrink headParameters
     AbortTx{utxo, headSeed} -> AbortTx <$> shrink utxo <*> shrink headSeed
     CollectComTx{utxo, headId, headParameters} -> CollectComTx <$> shrink utxo <*> shrink headId <*> shrink headParameters
+    IncrementTx{headId, headParameters, snapshot, signatures} ->
+      IncrementTx <$> shrink headId <*> shrink headParameters <*> shrink snapshot <*> shrink signatures
     DecrementTx{headId, headParameters, snapshot, signatures} ->
       DecrementTx <$> shrink headId <*> shrink headParameters <*> shrink snapshot <*> shrink signatures
     CloseTx{headId, headParameters, confirmedSnapshot} -> CloseTx <$> shrink headId <*> shrink headParameters <*> shrink confirmedSnapshot
@@ -112,6 +120,7 @@ data OnChainTx tx
   | OnAbortTx {headId :: HeadId}
   | OnCollectComTx {headId :: HeadId}
   | OnDecrementTx {headId :: HeadId}
+  | OnIncrementTx {headId :: HeadId}
   | OnCloseTx
       { headId :: HeadId
       , snapshotNumber :: SnapshotNumber
@@ -131,6 +140,17 @@ deriving anyclass instance IsTx tx => ToJSON (OnChainTx tx)
 deriving anyclass instance IsTx tx => FromJSON (OnChainTx tx)
 
 instance (Arbitrary tx, Arbitrary (UTxOType tx)) => Arbitrary (OnChainTx tx) where
+  arbitrary = genericArbitrary
+
+-- | Possible errors when trying to construct increment tx
+data IncrementTxError
+  = InvalidHeadIdInIncrement {headId :: HeadId}
+  | CannotFindHeadOutputInIncrement
+  | SnapshotMissingIncrementUTxO
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (FromJSON, ToJSON)
+
+instance Arbitrary IncrementTxError where
   arbitrary = genericArbitrary
 
 -- | Exceptions thrown by 'postTx'.
@@ -171,6 +191,7 @@ data PostTxError tx
   | FailedToConstructCloseTx
   | FailedToConstructContestTx
   | FailedToConstructCollectTx
+  | FailedToConstructIncrementTx { validationError :: IncrementTxError }
   | FailedToConstructDecrementTx
   | FailedToConstructFanoutTx
   deriving stock (Generic)
@@ -258,6 +279,14 @@ data Chain tx m = Chain
       m (Either (PostTxError Tx) Tx)
   -- ^ Create a commit transaction using user provided utxos (zero or many) and
   -- information to spend from a script. Errors are handled at the call site.
+  , draftIncrementTx ::
+      MonadThrow m =>
+      HeadId ->
+      HeadParameters ->
+      Snapshot Tx ->
+      MultiSignature (Snapshot Tx) ->
+      UTxO' (TxOut CtxUTxO, Witness WitCtxTxIn) ->
+      m (Either (PostTxError Tx) Tx)
   , submitTx :: MonadThrow m => Tx -> m ()
   -- ^ Submit a cardano transaction.
   --

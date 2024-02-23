@@ -59,6 +59,7 @@ import Hydra.Cardano.Api (
 import Hydra.Chain (
   ChainStateType,
   HeadParameters (..),
+  IncrementTxError (..),
   IsChainState (..),
   OnChainTx (..),
   PostTxError (..),
@@ -94,6 +95,7 @@ import Hydra.Chain.Direct.Tx (
   decrementTx,
   fanoutTx,
   headIdToPolicyId,
+  incrementTx,
   initTx,
   observeCloseTx,
   observeCollectComTx,
@@ -171,6 +173,7 @@ data ChainTransition
   | Abort
   | Commit
   | Collect
+  | Increment
   | Decrement
   | Close
   | Contest
@@ -481,6 +484,31 @@ collect ctx headId headParameters utxoToCollect spendableUTxO = do
 
   ChainContext{networkId, ownVerificationKey, scriptRegistry} = ctx
 
+increment ::
+  ChainContext ->
+  HeadId ->
+  HeadParameters ->
+  -- | Spendable UTxO containing head, initial and commit outputs
+  UTxO ->
+  -- | Confirmed Snapshot
+  Snapshot Tx ->
+  MultiSignature (Snapshot Tx) ->
+  Either IncrementTxError Tx
+increment ctx headId headParameters spendableUTxO snapshot signatures = do
+  pid <- headIdToPolicyId headId ?> InvalidHeadIdInIncrement{headId}
+  let utxoOfThisHead' = utxoOfThisHead pid spendableUTxO
+  headUTxO <- UTxO.find (isScriptTxOut headScript) utxoOfThisHead' ?> CannotFindHeadOutputInIncrement
+  case utxoToCommit of
+    Nothing -> Left SnapshotMissingIncrementUTxO
+    Just _incrementUTxO ->
+      pure $
+        incrementTx scriptRegistry ownVerificationKey headId headParameters headUTxO snapshot signatures
+ where
+  headScript = fromPlutusScript @PlutusScriptV2 Head.validatorScript
+
+  ChainContext{ownVerificationKey, scriptRegistry} = ctx
+  Snapshot{utxoToCommit} = snapshot
+
 -- | Possible errors when trying to construct decrement tx
 data DecrementTxError
   = InvalidHeadIdInDecrement {headId :: HeadId}
@@ -548,10 +576,12 @@ close ctx spendableUTxO headId HeadParameters{parties, contestationPeriod} confi
 
   closingSnapshot = case confirmedSnapshot of
     InitialSnapshot{initialUTxO} -> CloseWithInitialSnapshot{openUtxoHash = UTxOHash $ hashUTxO @Tx initialUTxO}
-    ConfirmedSnapshot{snapshot = Snapshot{number, utxo, utxoToDecommit}, signatures} ->
+    ConfirmedSnapshot{snapshot = Snapshot{number, utxo, utxoToCommit, utxoToDecommit}, signatures} ->
       CloseWithConfirmedSnapshot
         { snapshotNumber = number
         , closeUtxoHash = UTxOHash $ hashUTxO @Tx utxo
+        , closeUtxoToCommitHash =
+            UTxOHash $ maybe (hashUTxO @Tx mempty) (hashUTxO @Tx) utxoToCommit
         , closeUtxoToDecommitHash =
             UTxOHash $ maybe (hashUTxO @Tx mempty) (hashUTxO @Tx) utxoToDecommit
         , signatures
@@ -820,6 +850,7 @@ genChainStateWithTx =
     [ genInitWithState
     , genAbortWithState
     , genCommitWithState
+    , genIncrementWithState
     , genDecrementWithState
     , genCollectWithState
     , genCloseWithState
@@ -858,6 +889,11 @@ genChainStateWithTx =
   genCollectWithState = do
     (ctx, _, st, tx) <- genCollectComTx
     pure (ctx, Initial st, tx, Collect)
+
+  genIncrementWithState :: Gen (ChainContext, ChainState, Tx, ChainTransition)
+  genIncrementWithState = do
+    (ctx, st, tx) <- genIncrementTx maxGenParties
+    pure (ctx, Open st, tx, Increment)
 
   genDecrementWithState :: Gen (ChainContext, ChainState, Tx, ChainTransition)
   genDecrementWithState = do
@@ -1042,6 +1078,16 @@ genCollectComTx = do
   let spendableUTxO = getKnownUTxO stInitialized
   pure (cctx, committedUTxO, stInitialized, unsafeCollect cctx headId (ctxHeadParameters ctx) utxoToCollect spendableUTxO)
 
+genIncrementTx :: Int -> Gen (ChainContext, OpenState, Tx)
+genIncrementTx numParties = do
+  ctx <- genHydraContextFor numParties
+  (_, stOpen@OpenState{headId}) <- genStOpen ctx
+  cctx <- pickChainContext ctx
+  snapshot <- arbitrary `suchThat` (\Snapshot{utxoToCommit} -> isJust utxoToCommit)
+  signatures <- arbitrary
+  let openUTxO = getKnownUTxO stOpen
+  pure (cctx, stOpen, unsafeIncrement cctx headId (ctxHeadParameters ctx) openUTxO snapshot signatures)
+
 genDecrementTx :: Int -> Gen (ChainContext, OpenState, Tx)
 genDecrementTx numParties = do
   ctx <- genHydraContextFor numParties
@@ -1163,6 +1209,19 @@ unsafeAbort ::
   Tx
 unsafeAbort ctx seedTxIn spendableUTxO committedUTxO =
   either (error . show) id $ abort ctx seedTxIn spendableUTxO committedUTxO
+
+unsafeIncrement ::
+  HasCallStack =>
+  ChainContext ->
+  HeadId ->
+  HeadParameters ->
+  -- | Spendable 'UTxO'
+  UTxO ->
+  Snapshot Tx ->
+  MultiSignature (Snapshot Tx) ->
+  Tx
+unsafeIncrement ctx headId parameters spendableUTxO snapshot signatures =
+  either (error . show) id $ increment ctx headId parameters spendableUTxO snapshot signatures
 
 unsafeDecrement ::
   HasCallStack =>

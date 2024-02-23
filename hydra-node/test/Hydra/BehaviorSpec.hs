@@ -22,7 +22,7 @@ import Data.List ((!!))
 import Data.List qualified as List
 import Hydra.API.ClientInput
 import Hydra.API.Server (Server (..))
-import Hydra.API.ServerOutput (DecommitInvalidReason (..), ServerOutput (..))
+import Hydra.API.ServerOutput (InvalidReason (..), ServerOutput (..))
 import Hydra.Cardano.Api (ChainPoint (..), SigningKey, SlotNo (SlotNo), Tx)
 import Hydra.Chain (
   Chain (..),
@@ -245,7 +245,7 @@ spec = parallel $ do
                 send n1 (NewTx $ aValidTx 42)
                 waitUntil [n1, n2] $ TxValid testHeadId (aValidTx 42)
 
-                let snapshot = Snapshot testHeadId 1 (utxoRefs [1, 2, 42]) [42] mempty
+                let snapshot = Snapshot testHeadId 1 (utxoRefs [1, 2, 42]) [42] mempty mempty
                     sigs = aggregate [sign aliceSk snapshot, sign bobSk snapshot]
                 waitUntil [n1] $ SnapshotConfirmed testHeadId snapshot sigs
 
@@ -381,6 +381,73 @@ spec = parallel $ do
 
                 waitUntil [n1] $ GetUTxOResponse testHeadId (utxoRefs [2, 42])
 
+      it "can request commit" $
+        shouldRunInSim $ do
+          withSimulatedChainAndNetwork $ \chain ->
+            withHydraNode aliceSk [bob] chain $ \n1 ->
+              withHydraNode bobSk [alice] chain $ \n2 -> do
+                openHead chain n1 n2
+
+                send n1 (Commit (utxoRef 42))
+                waitUntil [n1, n2] $
+                  CommitRequested{headId = testHeadId, utxoToCommit = utxoRefs [42]}
+
+      it "requested commits get approved" $
+        shouldRunInSim $ do
+          withSimulatedChainAndNetwork $ \chain ->
+            withHydraNode aliceSk [bob] chain $ \n1 ->
+              withHydraNode bobSk [alice] chain $ \n2 -> do
+                openHead chain n1 n2
+                send n2 (Commit (utxoRef 33))
+                waitUntil [n1, n2] $
+                  CommitRequested{headId = testHeadId, utxoToCommit = utxoRefs [33]}
+
+                waitUntilMatch [n1] $
+                  \case
+                    SnapshotConfirmed{snapshot = Snapshot{utxoToCommit}} ->
+                      maybe False (33 `member`) utxoToCommit
+                    _ -> False
+
+                waitUntil [n1, n2] $ CommitApproved testHeadId (utxoRefs [33])
+
+                simulateIncrementalCommit chain
+
+                waitUntil [n1, n2] $ CommitFinalized testHeadId
+
+                send n1 GetUTxO
+                waitUntilMatch [n1] $
+                  \case
+                    GetUTxOResponse{headId, utxo} -> headId == testHeadId && member 33 utxo
+                    _ -> False
+
+      it "can only process one commit at once" $
+        shouldRunInSim $ do
+          withSimulatedChainAndNetwork $ \chain ->
+            withHydraNode aliceSk [bob] chain $ \n1 ->
+              withHydraNode bobSk [alice] chain $ \n2 -> do
+                openHead chain n1 n2
+                let commitUTxO1 = utxoRef 1
+                send n2 (Commit{commitUTxO = commitUTxO1})
+                waitUntil [n1, n2] $
+                  CommitRequested{headId = testHeadId, utxoToCommit = utxoRefs [1]}
+
+
+                let commitUTxO2 = utxoRef 2
+                send n1 (Commit{commitUTxO = commitUTxO2})
+                waitUntil [n1] $
+                  CommitInvalid{headId = testHeadId, commitInvalidReason = UTxOAlreadyInFlight{incrementUTxO = commitUTxO1}}
+
+                simulateIncrementalCommit chain
+
+                waitUntil [n1, n2] $ CommitFinalized{headId = testHeadId}
+
+                send n1 (Commit{commitUTxO = commitUTxO2})
+                waitUntil [n1, n2] $ CommitApproved{headId = testHeadId, utxoToCommit = utxoRefs [2]}
+
+                simulateIncrementalCommit chain
+
+                waitUntil [n1, n2] $ CommitFinalized{headId = testHeadId}
+
       it "can request decommit" $
         shouldRunInSim $ do
           withSimulatedChainAndNetwork $ \chain ->
@@ -432,7 +499,7 @@ spec = parallel $ do
                 let decommitTx2 = SimpleTx 2 (utxoRef 2) (utxoRef 22)
                 send n1 (Decommit{decommitTx = decommitTx2})
                 waitUntil [n1] $
-                  DecommitInvalid{headId = testHeadId, decommitInvalidReason = DecommitAlreadyInFlight{decommitTx = decommitTx1}}
+                  DecommitInvalid{headId = testHeadId, decommitInvalidReason = TransactionAlreadyInFlight{transaction = decommitTx1}}
 
                 waitUntil [n1, n2] $ DecommitFinalized{headId = testHeadId}
 
@@ -620,6 +687,7 @@ data SimulatedChainNetwork tx m = SimulatedChainNetwork
   , tickThread :: Async m ()
   , rollbackAndForward :: Natural -> m ()
   , simulateCommit :: (Party, UTxOType tx) -> m ()
+  , simulateIncrementalCommit :: m ()
   , closeWithInitialSnapshot :: (Party, UTxOType tx) -> m ()
   }
 
@@ -630,6 +698,7 @@ dummySimulatedChainNetwork =
     , tickThread = error "tickThread"
     , rollbackAndForward = \_ -> error "rollbackAndForward"
     , simulateCommit = \_ -> error "simulateCommit"
+    , simulateIncrementalCommit = error "simulateIncrementalCommit"
     , closeWithInitialSnapshot = \(_, _) -> error "closeWithInitialSnapshot"
     }
 
@@ -688,6 +757,7 @@ simulatedChainAndNetwork initialChainState = do
                         now <- getCurrentTime
                         createAndYieldEvent nodes history localChainState $ toOnChainTx now tx
                     , draftCommitTx = \_ -> error "unexpected call to draftCommitTx"
+                    , draftIncrementTx = \_ -> error "unexpected call to draftIncrementTx"
                     , submitTx = \_ -> error "unexpected call to submitTx"
                     }
               , hn = createMockNetwork node nodes
@@ -696,6 +766,8 @@ simulatedChainAndNetwork initialChainState = do
       , rollbackAndForward = rollbackAndForward nodes history localChainState
       , simulateCommit = \(party, committed) ->
           createAndYieldEvent nodes history localChainState $ OnCommitTx{headId = testHeadId, party, committed}
+      , simulateIncrementalCommit =
+          createAndYieldEvent nodes history localChainState $ OnIncrementTx{headId = testHeadId}
       , closeWithInitialSnapshot = error "unexpected call to closeWithInitialSnapshot"
       }
  where
@@ -780,6 +852,8 @@ toOnChainTx now = \case
     OnAbortTx{headId = testHeadId}
   CollectComTx{headId} ->
     OnCollectComTx{headId}
+  IncrementTx{headId} ->
+    OnIncrementTx{headId}
   DecrementTx{headId} ->
     OnDecrementTx{headId}
   CloseTx{confirmedSnapshot} ->
@@ -864,6 +938,7 @@ createHydraNode ledger nodeState signingKey otherParties outputs outputHistory c
           Chain
             { postTx = \_ -> pure ()
             , draftCommitTx = \_ -> error "unexpected call to draftCommitTx"
+            , draftIncrementTx = \_ -> error "unexpected call to draftIncrementTx"
             , submitTx = \_ -> error "unexpected call to submitTx"
             }
       , server =

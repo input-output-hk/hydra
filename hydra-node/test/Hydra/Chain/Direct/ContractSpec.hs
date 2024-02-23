@@ -26,6 +26,7 @@ import Hydra.Chain.Direct.Contract.Commit (genCommitMutation, healthyCommitTx)
 import Hydra.Chain.Direct.Contract.Contest (genContestMutation, healthyContestTx)
 import Hydra.Chain.Direct.Contract.Decrement (genDecrementMutation, healthyDecrementTx)
 import Hydra.Chain.Direct.Contract.FanOut (genFanoutMutation, healthyFanoutTx)
+import Hydra.Chain.Direct.Contract.Increment (healthyIncrementTx)
 import Hydra.Chain.Direct.Contract.Init (genInitMutation, healthyInitTx)
 import Hydra.Chain.Direct.Contract.Mutation (propMutation, propTransactionEvaluates)
 import Hydra.Chain.Direct.Fixture (testNetworkId)
@@ -113,6 +114,9 @@ spec = parallel $ do
       propTransactionEvaluates healthyCollectComTx
     prop "does not survive random adversarial mutations" $
       propMutation healthyCollectComTx genCollectComMutation
+  describe "Increment" $ do
+    prop "is healthy" $
+      propTransactionEvaluates healthyIncrementTx
   describe "Decrement" $ do
     prop "is healthy" $
       propTransactionEvaluates healthyDecrementTx
@@ -208,7 +212,7 @@ prop_hashingCaresAboutOrderingOfTxOuts =
 
 prop_verifyOffChainSignatures :: Property
 prop_verifyOffChainSignatures =
-  forAll arbitrary $ \(snapshot@Snapshot{headId, number, utxo, utxoToDecommit} :: Snapshot SimpleTx) ->
+  forAll arbitrary $ \(snapshot@Snapshot{headId, number, utxo, utxoToCommit, utxoToDecommit} :: Snapshot SimpleTx) ->
     forAll arbitrary $ \seed ->
       let sk = generateSigningKey seed
           offChainSig = sign sk snapshot
@@ -217,8 +221,9 @@ prop_verifyOffChainSignatures =
           snapshotNumber = toInteger number
           utxoHash =
             (toBuiltin $ hashUTxO @SimpleTx utxo)
+          utxoToCommitHash = maybe (toBuiltin $ hashUTxO @SimpleTx mempty) (toBuiltin . hashUTxO @SimpleTx) utxoToCommit
           utxoToDecommitHash = maybe (toBuiltin $ hashUTxO @SimpleTx mempty) (toBuiltin . hashUTxO @SimpleTx) utxoToDecommit
-       in verifyPartySignature (headIdToCurrencySymbol headId) snapshotNumber utxoHash utxoToDecommitHash onChainParty onChainSig
+       in verifyPartySignature (headIdToCurrencySymbol headId) snapshotNumber utxoHash utxoToCommitHash utxoToDecommitHash onChainParty onChainSig
             & counterexample ("headId: " <> show headId)
             & counterexample ("signed: " <> show onChainSig)
             & counterexample ("party: " <> show onChainParty)
@@ -227,7 +232,7 @@ prop_verifyOffChainSignatures =
 
 prop_verifySnapshotSignatures :: Property
 prop_verifySnapshotSignatures =
-  forAll arbitrary $ \(snapshot@Snapshot{headId, number, utxo, utxoToDecommit} :: Snapshot SimpleTx) ->
+  forAll arbitrary $ \(snapshot@Snapshot{headId, number, utxo, utxoToCommit, utxoToDecommit} :: Snapshot SimpleTx) ->
     forAll arbitrary $ \sks ->
       let parties = deriveParty <$> sks
           onChainParties = partyToChain <$> parties
@@ -235,5 +240,6 @@ prop_verifySnapshotSignatures =
           snapshotNumber = toInteger number
           utxoHash =
             toBuiltin (hashUTxO @SimpleTx utxo)
+          utxoToCommitHash = maybe (toBuiltin $ hashUTxO @SimpleTx mempty) (toBuiltin . hashUTxO @SimpleTx) utxoToCommit
           utxoToDecommitHash = maybe (toBuiltin $ hashUTxO @SimpleTx mempty) (toBuiltin . hashUTxO @SimpleTx) utxoToDecommit
-       in verifySnapshotSignature onChainParties (headIdToCurrencySymbol headId) snapshotNumber utxoHash utxoToDecommitHash signatures
+       in verifySnapshotSignature onChainParties (headIdToCurrencySymbol headId) snapshotNumber utxoHash utxoToCommitHash utxoToDecommitHash signatures

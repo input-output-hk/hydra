@@ -1,5 +1,6 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 -- | Smart constructors for creating Hydra protocol transactions to be used in
 -- the 'Hydra.Chain.Direct' way of talking to the main-chain.
@@ -347,6 +348,66 @@ collectComTx networkId scriptRegistry vk headId headParameters (headInput, initi
   commitRedeemer =
     toScriptData $ Commit.redeemer Commit.ViaCollectCom
 
+-- | Construct a _increment_ transaction which takes as input some 'UTxO'
+-- from L1 and makes it available in the L2 ledger state.
+incrementTx ::
+  -- | Published Hydra scripts to reference.
+  ScriptRegistry ->
+  -- | Party who's authorizing this transaction
+  VerificationKey PaymentKey ->
+  -- | Head identifier
+  HeadId ->
+  -- | Parameters of the head.
+  HeadParameters ->
+  -- | Everything needed to spend the Head state-machine output.
+  (TxIn, TxOut CtxUTxO) ->
+  -- | Confirmed Snapshot
+  Snapshot Tx ->
+  MultiSignature (Snapshot Tx) ->
+  Tx
+incrementTx scriptRegistry vk headId headParameters (headInput, headOutput) snapshot signatures =
+  unsafeBuildTransaction $
+    emptyTxBody
+      & addInputs ([(headInput, headWitness)] <> incrementInput)
+      & addReferenceInputs [headScriptRef]
+      & addOutputs [headOutput']
+      -- TODO: check whether we really want to require the hydra node to approve
+      -- this. The multi-sig should already include approval by the node
+      -- (through it's hydra keys) and if we don't require this signature, we
+      -- could make clients to balance their own transactions (and pay fees).
+      & addExtraRequiredSigners [verificationKeyHash vk]
+ where
+  incrementInput =
+    let inputs = maybe [] (toList . UTxO.inputSet) utxoToCommit
+     in (,BuildTxWith $ KeyWitness KeyWitnessForSpending) <$> inputs
+
+  headRedeemer = toScriptData $ Head.Increment (toPlutusSignatures signatures)
+  utxoHash = toBuiltin $ hashUTxO @Tx utxo
+
+  HeadParameters{parties, contestationPeriod} = headParameters
+
+  headOutput' =
+    modifyTxOutDatum (const headDatumAfter) headOutput
+
+  headScript = fromPlutusScript @PlutusScriptV2 Head.validatorScript
+
+  headScriptRef = fst (headReference scriptRegistry)
+
+  headWitness =
+    BuildTxWith $
+      ScriptWitness scriptWitnessInCtx $
+        mkScriptReference headScriptRef headScript InlineScriptDatum headRedeemer
+
+  headDatumAfter =
+    mkTxOutDatumInline
+      Head.Open
+        { Head.parties = partyToChain <$> parties
+        , utxoHash
+        , contestationPeriod = toChain contestationPeriod
+        , headId = headIdToCurrencySymbol headId
+        }
+  Snapshot{utxo, utxoToCommit} = snapshot
+
 -- | Construct a _decrement_ transaction which takes as input some 'UTxO' present
 -- in the L2 ledger state and makes it available on L1.
 decrementTx ::
@@ -409,6 +470,7 @@ data ClosingSnapshot
   | CloseWithConfirmedSnapshot
       { snapshotNumber :: SnapshotNumber
       , closeUtxoHash :: UTxOHash
+      , closeUtxoToCommitHash :: UTxOHash
       , closeUtxoToDecommitHash :: UTxOHash
       , -- XXX: This is a bit of a wart and stems from the fact that our
         -- SignableRepresentation of 'Snapshot' is in fact the snapshotNumber
@@ -481,8 +543,8 @@ closeTx scriptRegistry vk closing startSlotNo (endSlotNo, utcTime) openThreadOut
       Head.Closed
         { snapshotNumber
         , utxoHash = toBuiltin utxoHashBytes
-        , -- TODO: find a way to introduce this value
-          utxoToDecommitHash = toBuiltin decommitUTxOHashBytes
+        , utxoToCommitHash = toBuiltin commitUTxOHashBytes
+        , utxoToDecommitHash = toBuiltin decommitUTxOHashBytes
         , parties = openParties
         , contestationDeadline
         , contestationPeriod = openContestationPeriod
@@ -494,9 +556,9 @@ closeTx scriptRegistry vk closing startSlotNo (endSlotNo, utcTime) openThreadOut
     CloseWithInitialSnapshot{} -> 0
     CloseWithConfirmedSnapshot{snapshotNumber = sn} -> sn
 
-  (UTxOHash utxoHashBytes, UTxOHash decommitUTxOHashBytes) = case closing of
-    CloseWithInitialSnapshot{openUtxoHash} -> (openUtxoHash, mempty)
-    CloseWithConfirmedSnapshot{closeUtxoHash, closeUtxoToDecommitHash} -> (closeUtxoHash, closeUtxoToDecommitHash)
+  (UTxOHash utxoHashBytes, UTxOHash decommitUTxOHashBytes, UTxOHash commitUTxOHashBytes) = case closing of
+    CloseWithInitialSnapshot{openUtxoHash} -> (openUtxoHash, mempty, mempty)
+    CloseWithConfirmedSnapshot{closeUtxoHash, closeUtxoToDecommitHash, closeUtxoToCommitHash} -> (closeUtxoHash, closeUtxoToDecommitHash, closeUtxoToCommitHash)
 
   signature = case closing of
     CloseWithInitialSnapshot{} -> mempty
@@ -535,7 +597,7 @@ contestTx ::
   HeadId ->
   ContestationPeriod ->
   Tx
-contestTx scriptRegistry vk Snapshot{number, utxo, utxoToDecommit} sig (slotNo, _) closedThreadOutput headId contestationPeriod =
+contestTx scriptRegistry vk Snapshot{number, utxo, utxoToCommit, utxoToDecommit} sig (slotNo, _) closedThreadOutput headId contestationPeriod =
   unsafeBuildTransaction $
     emptyTxBody
       & addInputs [(headInput, headWitness)]
@@ -582,6 +644,7 @@ contestTx scriptRegistry vk Snapshot{number, utxo, utxoToDecommit} sig (slotNo, 
       Head.Closed
         { snapshotNumber = toInteger number
         , utxoHash
+        , utxoToCommitHash
         , utxoToDecommitHash
         , parties = closedParties
         , contestationDeadline = newContestationDeadline
@@ -590,6 +653,8 @@ contestTx scriptRegistry vk Snapshot{number, utxo, utxoToDecommit} sig (slotNo, 
         , contesters = contester : closedContesters
         }
   utxoHash = toBuiltin $ hashUTxO @Tx utxo
+
+  utxoToCommitHash = toBuiltin $ hashUTxO @Tx (fromMaybe mempty utxoToCommit)
 
   utxoToDecommitHash = toBuiltin $ hashUTxO @Tx (fromMaybe mempty utxoToDecommit)
 
@@ -738,6 +803,7 @@ data HeadObservation
   | Abort AbortObservation
   | Commit CommitObservation
   | CollectCom CollectComObservation
+  | Increment IncrementObservation
   | Decrement DecrementObservation
   | Close CloseObservation
   | Contest ContestObservation
@@ -755,6 +821,7 @@ observeHeadTx networkId utxo tx =
       <|> Abort <$> observeAbortTx utxo tx
       <|> Commit <$> observeCommitTx networkId utxo tx
       <|> CollectCom <$> observeCollectComTx utxo tx
+      <|> Increment <$> observeIncrementTx utxo tx
       <|> Decrement <$> observeDecrementTx utxo tx
       <|> Close <$> observeCloseTx utxo tx
       <|> Contest <$> observeContestTx utxo tx
@@ -982,6 +1049,40 @@ observeCollectComTx utxo tx = do
     case fromScriptData datum of
       Just Head.Open{utxoHash} -> Just $ fromBuiltin utxoHash
       _ -> Nothing
+
+newtype IncrementObservation = IncrementObservation
+  { headId :: HeadId
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance Arbitrary IncrementObservation where
+  arbitrary = genericArbitrary
+
+observeIncrementTx ::
+  UTxO ->
+  Tx ->
+  Maybe IncrementObservation
+observeIncrementTx utxo tx = do
+  let inputUTxO = resolveInputsUTxO utxo tx
+  (headInput, headOutput) <- findTxOutByScript @PlutusScriptV2 inputUTxO headScript
+  redeemer <- findRedeemerSpending tx headInput
+  oldHeadDatum <- txOutScriptData $ toTxContext headOutput
+  datum <- fromScriptData oldHeadDatum
+  headId <- findStateToken headOutput
+  case (datum, redeemer) of
+    (Head.Open{}, Head.Increment{}) -> do
+      (_, newHeadOutput) <- findTxOutByScript @PlutusScriptV2 (utxoFromTx tx) headScript
+      newHeadDatum <- txOutScriptData $ toTxContext newHeadOutput
+      case fromScriptData newHeadDatum of
+        Just Head.Open{} ->
+          pure
+            IncrementObservation
+              { headId
+              }
+        _ -> Nothing
+    _ -> Nothing
+ where
+  headScript = fromPlutusScript Head.validatorScript
 
 newtype DecrementObservation = DecrementObservation
   { headId :: HeadId

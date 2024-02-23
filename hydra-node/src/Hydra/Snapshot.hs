@@ -33,6 +33,8 @@ data Snapshot tx = Snapshot
   , utxo :: UTxOType tx
   , confirmed :: [TxIdType tx]
   -- ^ The set of transactions that lead to 'utxo'
+  , utxoToCommit :: Maybe (UTxOType tx)
+  -- ^ UTxO to be committed. Spec: Ûα
   , utxoToDecommit :: Maybe (UTxOType tx)
   -- ^ UTxO to be decommitted. Spec: Ûω
   }
@@ -42,13 +44,14 @@ deriving stock instance IsTx tx => Eq (Snapshot tx)
 deriving stock instance IsTx tx => Show (Snapshot tx)
 
 instance IsTx tx => ToJSON (Snapshot tx) where
-  toJSON Snapshot{headId, number, utxo, confirmed, utxoToDecommit} =
+  toJSON Snapshot{headId, number, utxo, confirmed, utxoToCommit, utxoToDecommit} =
     object
       ( [ "headId" .= headId
         , "snapshotNumber" .= number
         , "utxo" .= utxo
         , "confirmedTransactions" .= confirmed
         ]
+          <> maybe mempty (pure . ("utxoToCommit" .=)) utxoToCommit
           <> maybe mempty (pure . ("utxoToDecommit" .=)) utxoToDecommit
       )
 
@@ -59,44 +62,52 @@ instance IsTx tx => FromJSON (Snapshot tx) where
       <*> (obj .: "snapshotNumber")
       <*> (obj .: "utxo")
       <*> (obj .: "confirmedTransactions")
+      <*> ( obj .:? "utxoToCommit" >>= \case
+              Nothing -> pure mempty
+              (Just utxo) -> pure $ Just utxo
+          )
       <*> ( obj .:? "utxoToDecommit" >>= \case
               Nothing -> pure mempty
-              (Just utxo) -> pure utxo
+              (Just utxo) -> pure $ Just utxo
           )
 
 instance (Arbitrary (TxIdType tx), Arbitrary (UTxOType tx)) => Arbitrary (Snapshot tx) where
   arbitrary = genericArbitrary
 
   -- NOTE: See note on 'Arbitrary (ClientInput tx)'
-  shrink Snapshot{headId, number, utxo, confirmed, utxoToDecommit} =
-    [ Snapshot headId number utxo' confirmed' utxoToDecommit'
+  shrink Snapshot{headId, number, utxo, confirmed, utxoToCommit, utxoToDecommit} =
+    [ Snapshot headId number utxo' confirmed' utxoToCommit' utxoToDecommit'
     | utxo' <- shrink utxo
     , confirmed' <- shrink confirmed
+    , utxoToCommit' <- shrink utxoToCommit
     , utxoToDecommit' <- shrink utxoToDecommit
     ]
 
 -- | Binary representation of snapshot signatures
 -- TODO: document CDDL format, either here or on in 'Hydra.Contract.Head.verifyPartySignature'
 instance forall tx. IsTx tx => SignableRepresentation (Snapshot tx) where
-  getSignableRepresentation Snapshot{number, headId, utxo, utxoToDecommit} =
+  getSignableRepresentation Snapshot{number, headId, utxo, utxoToCommit, utxoToDecommit} =
     LBS.toStrict $
       serialise (toData $ toBuiltin $ serialiseToRawBytes headId)
         <> serialise (toData $ toBuiltin $ toInteger number) -- CBOR(I(integer))
         <> serialise (toData $ toBuiltin $ hashUTxO @tx utxo) -- CBOR(B(bytestring)
+        <> serialise (toData . toBuiltin . hashUTxO @tx $ fromMaybe mempty utxoToCommit) -- CBOR(B(bytestring)
         <> serialise (toData . toBuiltin . hashUTxO @tx $ fromMaybe mempty utxoToDecommit) -- CBOR(B(bytestring)
 
 instance (Typeable tx, ToCBOR (UTxOType tx), ToCBOR (TxIdType tx)) => ToCBOR (Snapshot tx) where
-  toCBOR Snapshot{headId, number, utxo, confirmed, utxoToDecommit} =
+  toCBOR Snapshot{headId, number, utxo, confirmed, utxoToCommit, utxoToDecommit} =
     toCBOR headId
       <> toCBOR number
       <> toCBOR utxo
       <> toCBOR confirmed
+      <> toCBOR utxoToCommit
       <> toCBOR utxoToDecommit
 
 instance (Typeable tx, FromCBOR (UTxOType tx), FromCBOR (TxIdType tx)) => FromCBOR (Snapshot tx) where
   fromCBOR =
     Snapshot
       <$> fromCBOR
+      <*> fromCBOR
       <*> fromCBOR
       <*> fromCBOR
       <*> fromCBOR
@@ -130,6 +141,7 @@ getSnapshot = \case
       , number = 0
       , utxo = initialUTxO
       , confirmed = []
+      , utxoToCommit = mempty
       , utxoToDecommit = mempty
       }
   ConfirmedSnapshot{snapshot} -> snapshot
@@ -179,7 +191,7 @@ genConfirmedSnapshot headId minSn utxo sks
     -- snapshots
     number <- arbitrary `suchThat` (> minSn)
     -- TODO: check whether we are fine with this not producing any decommitting utxo ever
-    let snapshot = Snapshot{headId, number, utxo, confirmed = [], utxoToDecommit = mempty}
+    let snapshot = Snapshot{headId, number, utxo, confirmed = [], utxoToCommit = mempty, utxoToDecommit = mempty}
     let signatures = aggregate $ fmap (`sign` snapshot) sks
     pure $ ConfirmedSnapshot{snapshot, signatures}
 

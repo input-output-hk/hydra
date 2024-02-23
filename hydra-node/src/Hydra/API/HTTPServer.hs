@@ -1,8 +1,13 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Hydra.API.HTTPServer where
 
 import Hydra.Prelude
+
+-- XXX: This import is easy to miss and is a bit of a weird dependency onto the
+-- cardano-specific chain layer.
+import Hydra.Chain.Direct.State ()
 
 import Cardano.Api.UTxO qualified as UTxO
 import Cardano.Ledger.Core (PParams)
@@ -14,6 +19,8 @@ import Data.ByteString.Short ()
 import Data.Text (pack)
 import Hydra.API.APIServerLog (APIServerLog (..), Method (..), PathInfo (..))
 import Hydra.API.ClientInput (ClientInput (..))
+import Hydra.API.ServerOutput (ServerOutput (SnapshotConfirmed, signatures, snapshot))
+import Hydra.API.Subscription (SubscribeTo, waitFor)
 import Hydra.Cardano.Api (
   CtxUTxO,
   HashableScriptData,
@@ -34,11 +41,12 @@ import Hydra.Cardano.Api (
   pattern KeyWitness,
   pattern ScriptWitness,
  )
-import Hydra.Chain (Chain (..), IsChainState, PostTxError (..), draftCommitTx)
-import Hydra.Chain.Direct.State ()
+import Hydra.Chain (Chain (..), HeadParameters (..), IsChainState, PostTxError (..), draftCommitTx)
 import Hydra.HeadId (HeadId)
+import Hydra.HeadLogic.State (Environment (..))
 import Hydra.Ledger.Cardano ()
 import Hydra.Logging (Tracer, traceWith)
+import Hydra.Snapshot (Snapshot (..))
 import Network.HTTP.Types (status200, status400, status500)
 import Network.Wai (
   Application,
@@ -151,16 +159,17 @@ instance Arbitrary TransactionSubmitted where
 
 -- | Hydra HTTP server
 httpApp ::
-  FromJSON tx =>
+  Environment ->
   Tracer IO APIServerLog ->
-  Chain tx IO ->
+  Chain Tx IO ->
   PParams LedgerEra ->
   -- | A means to get the 'HeadId' if initializing the Head.
-  (STM IO) (Maybe HeadId) ->
+  (STM IO) (Maybe (Either HeadId HeadId)) ->
   -- | Callback to yield a 'ClientInput' to the main event loop.
-  (ClientInput tx -> IO ()) ->
+  (ClientInput Tx -> IO ()) ->
+  SubscribeTo IO (ServerOutput Tx) ->
   Application
-httpApp tracer directChain pparams getInitializingHeadId putClientInput request respond = do
+httpApp env tracer directChain pparams getHeadId putClientInput sub request respond = do
   traceWith tracer $
     APIHTTPRequestReceived
       { method = Method $ requestMethod request
@@ -169,7 +178,7 @@ httpApp tracer directChain pparams getInitializingHeadId putClientInput request 
   case (requestMethod request, pathInfo request) of
     ("POST", ["commit"]) ->
       consumeRequestBodyStrict request
-        >>= handleDraftCommitUtxo directChain getInitializingHeadId
+        >>= handleDraftCommitUtxo env directChain getHeadId putClientInput sub
         >>= respond
     ("POST", ["decommit"]) ->
       consumeRequestBodyStrict request
@@ -262,19 +271,24 @@ httpApp tracer directChain pparams getInitializingHeadId putClientInput request 
 --   }
 --   @
 handleDraftCommitUtxo ::
-  Chain tx IO ->
+  Environment ->
+  Chain Tx IO ->
   -- | A means to get the 'HeadId' if initializing the Head.
-  (STM IO) (Maybe HeadId) ->
+  (STM IO) (Maybe (Either HeadId HeadId)) ->
+  -- | Callback to yield a 'ClientInput' to the main event loop.
+  (ClientInput Tx -> IO ()) ->
+  SubscribeTo IO (ServerOutput Tx) ->
   -- | Request body.
   LBS.ByteString ->
   IO Response
-handleDraftCommitUtxo directChain getInitializingHeadId body = do
+handleDraftCommitUtxo env directChain getInitializingHeadId putClientInput subscribe body = do
   case Aeson.eitherDecode' body :: Either String DraftCommitTxRequest of
     Left err ->
       pure $ responseLBS status400 [] (Aeson.encode $ Aeson.String $ pack err)
     Right DraftCommitTxRequest{utxoToCommit} -> do
       atomically getInitializingHeadId >>= \case
-        Just headId -> do
+        Just (Left headId) -> do
+          -- NOTE: In the Left case we are trying to do a regular commit
           draftCommitTx headId (fromTxOutWithWitness <$> utxoToCommit) <&> \case
             Left e ->
               -- Distinguish between errors users can actually benefit from and
@@ -287,10 +301,28 @@ handleDraftCommitUtxo directChain getInitializingHeadId body = do
                 _ -> responseLBS status500 [] (Aeson.encode $ toJSON e)
             Right commitTx ->
               responseLBS status200 [] (Aeson.encode $ DraftCommitTxResponse commitTx)
+        Just (Right headId) -> do
+          -- NOTE: In the Right case we are trying to incrementally commit
+          let utxoToIncrement = fst . fromTxOutWithWitness <$> utxoToCommit
+          putClientInput (Commit utxoToIncrement)
+          -- wait to see the next SnapshotConfirmed message
+          sub <- subscribe
+          (snapshot, signatures) <- waitFor sub $ \case
+            SnapshotConfirmed{snapshot, signatures} | snapshot.utxoToCommit == Just utxoToIncrement -> Just (snapshot, signatures)
+            _ -> Nothing
+          -- construct the increment tx
+          let parameters = HeadParameters{contestationPeriod, parties = party : otherParties}
+          eIncrementTx <- draftIncrementTx headId parameters snapshot signatures (fromTxOutWithWitness <$> utxoToCommit)
+          case eIncrementTx of
+            Left e -> pure $ responseLBS status500 [] (Aeson.encode $ toJSON e)
+            Right incrementTx ->
+              -- return it to the user for signing
+              pure $ responseLBS status200 [] (Aeson.encode incrementTx)
         -- XXX: This is not really an internal server error
         Nothing -> pure $ responseLBS status500 [] (Aeson.encode $ FailedToDraftTxNotInitializing @Tx)
  where
-  Chain{draftCommitTx} = directChain
+  Environment{contestationPeriod, party, otherParties} = env
+  Chain{draftCommitTx, draftIncrementTx} = directChain
 
   fromTxOutWithWitness TxOutWithWitness{txOut, witness} =
     (txOut, toScriptWitness witness)

@@ -111,6 +111,7 @@ mockChainAndNetwork tr seedKeys commits = do
       , tickThread
       , rollbackAndForward = rollbackAndForward nodes chain
       , simulateCommit = simulateCommit nodes
+      , simulateIncrementalCommit = error "simulateIncrementalCommit not implemented"
       , closeWithInitialSnapshot = closeWithInitialSnapshot nodes
       }
  where

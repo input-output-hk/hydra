@@ -34,62 +34,68 @@
                 },
                 "signatures": {
                     "multiSignature": [
-                        "0a6abe49f9a8de6da8e0c10383adbf613ae2f99247035d2bbe6753f78738483e04ac60f263d9283d3fce6ea9ed94348472ac8485325a0defbf889ab18efcda08",
-                        "7988309018ccd5d72a617b0d423856a3bd9514e4dbdcac31c7dd8c8c80817b43c227213db93b1583236a46c8ea89eeaafe722bb03b1e662ddbabe0b7c0b5ac02",
-                        "b228400e35d8a97fae911e83cc67a4322f830022e55ff458faa34e84330e4f7329537038a07686516b26abb10f1d4a7af9994871b50876ae76a646382319590c",
-                        "9bdb1cf01d6cc6ca7dae9152ac9782cce9ef96b1bfb3617bf182f18838ec9205b792e92ac49fc34f678d26bbc272bfe249f0d9a3658f49301c9cb7aabfede10c",
-                        "77f6c3edaa5cf837abed608c042fcb4fcb3ac5a8fa0a2f63a24a8b2671d570df616fc57984ee1463581be3f40bfc5e79271c7f0f24e98d5f1cd07f803037e600",
-                        "bb24d461e01d838166a1a1c61d441c36217448ef5975de96c4ec96d24514262044442d4ff89abb6a93eecafca7bcf9baa4e6a2cdc1f59f4f96e6759e09431b08",
-                        "335d9b0cb2a94e4f48e0da9f7d1533bf8d1d0f0081f48a4a6f714b2fe9726912c9e24934a9641c4427f2339ca90f52f6bdd32c1a4ca481c9f618e371abe9c003",
-                        "08df176f7f49b00c0d51cefc40bad85f4dc34f7ae30d832a1488c95fe28bf179fea18bef14c8346cf831bd0b5a27928052048edc2e184b41c7dfc9c248334c03",
-                        "621dc68829412f8202f7351e3b32ed1a599eda363a2cac40949843eaedfff79de6e3177a402c47abcd5c5cb9d1a8923a19ec4635d335a0eaa41cb0ef7fd29000",
-                        "c7053082090be4af6b0b3270f4ca8977815015cfc748edc4609e88e88c3922b48f2cf019381c9082d07cf450d13c5be1b45e26ece9891ab72abb53c9cfd84f03",
-                        "8b315da928ebfd40411fd69af4d37e50c57aa3aa6aef6e54dbf58a0d1fe79b5dd9f983fc66723df5b65c053f7ac928b38ac8db4a4438ec580b2fe6974c4fb00a",
-                        "cabfb67216361f7709b77badd8eb46d5463cde80c8ece90904bab85ec2788ca65298bf645bd7a44a4b5f3238545394b0325f0711ba3075ef619b1815e558530b",
-                        "50369f26407b4f808088f875f0cfeeb5b0280c32929d48d0b08bac9a1ef521f31c74688beee056da18770c8a6c64e6ff2e0920f49ef665815d306b18bffc7409",
-                        "2ffec7e9ac7df0dc44143b341f46e39097f0bcf09bda8a1d0c064e746351f0d430cef597572b377debe719f3dad77d32d04f1f6f20c7fa6abb23e61035f6380f",
-                        "6ca3305aa00749885088ced13de0be8fdc1cde8336051171bc7e5626937a9337eb387ff6ab45e8499156d621d0cdfa0aec36403d20831b16a3b9cc108cad3107",
-                        "b5347a76179d71fdee81bb33bda21e28c92dbd920c8e33c54a052ef95d29cc51933358e1666d64fdf335ef413640c51421005cc38247563fd3a2177df211b60b",
-                        "d474cd8444c32d43b9ca2aa25017837d52d98fc77f90c66ede59b9df37cf7648467233c9ad4a7645c33488bb4b56ef123222070961112e08d752c713d1b2d80f",
-                        "2fc14e9f0ef8cfbaa38c021b6e33f59226fe47e809f74d7279f447c156fa0c4a0cd72009c396924a8ed01ecb9dda06530ff9b67a6c009b94c6ad65810a3cc203",
-                        "db82e61163a81b7a29c7cdda74ffd4aac7dfbbd85430cfd04712743003199e7a0e014adfc3cf82aa48e3bf56684a6db65e703483b21c857ef3e7b90b2b716108",
-                        "86405265c486d95cebce5e082ea1f52de621484abfa4dccf9bb2f44981aef64b757319b2ec86421d12b72807124127418b79e9e06c4c6107cb8faead3141a807",
-                        "07c01fc7ee52bbfa9b5ea23665c9d511e5d18158eb807c36a91fba7931d948f5963c38aa12f0e5c14354cf847867b63666fed8527c351b67e413425bb11bf00e",
-                        "bb4e00e2292e921035526ae005d3dc0371cb7b4aca215d6f8e70e0b6d79870fe4e8b8658435d05771ddb015f1e95c64f051bcba7c3b4f9cf4a83f2d0b7cb6f07",
-                        "3baee862e7a7f4e72cbcacb60b8fb62904db728ec9981b197734bb2ea5f871e7e536a63b83fc27e93bfde1f6eae29dace04054a46e9a429de068dbc49cf35106",
-                        "3e0b655ea05e244d322d1d5bc7871771dbf27aa37be5763aabf097b6e50051ab2b44b975713bad4479948785cca69933b825ae5602556ba2b34e0c1c1e16fb0d"
+                        "ddae19c82a2260cfd0264e92b961421a29ca0d8179bf425214c51c420ece5d501fe0273b3611863e110967aeb2622d982de1c65644125776837e9398e78e6a0b",
+                        "a228e24000cf47532cadd315592b9162c1e659cb2d61622772cf90aea69f671c143dbf6bdd567ec185877455976b3893ff66c491bb5d46b5a21cfcf3bc52bd00",
+                        "967bb6b69a90f011379c96aa11d9ecd1d3c5cd13516c9462f2e8d64d3bfd519a2726b3176f7468fcf329c4254a117378b277357fd8a0e58619c8baa946e42301",
+                        "436ef3c0500b02bead47c505921634df40207a0ecfff113cb5b501ec317e26ff6c20fbde760a0ab6c5343706f3669b1bdc88c6a865b289de5c4a1704540fc702",
+                        "ed454637f4ca3a1c87e0512dc74742b7c3891c1d07f41c13146753f6f12188889e4bc5006863b292c0067ed6f0e8d28123c0b3949e4e85d285bc424242f5df08",
+                        "ca28527126be5dafcb52f19ba7b3ee3e11bf303c3b0aa2519c10047426af0712b30534abf41a4f40c47a8098bf8802c45e1934590c1969d3e2ebaa7c5ab9db08",
+                        "d9a3785314e788978d96de1accf086dd9f1f66504bc68f97397f9234978dce613fd0c753369e1fcb967bf2c94879f3e49c041d2d10966ac775797dcb5c5c5506",
+                        "7acab444de76779b97799bd1a6c66230b7b2f91aeca6b8dbd7aa38b5c96c4af921581634ff448cb61f3c2d4751abe1731a0f05bba225ae03a3c84183214a9c07",
+                        "be39b26e193a98a6e6397d6b5ae17a041ac4bdb9761e17d851b2ef3b6d968312b3d70aed8e459fdf518e27cb3cbbed76a46c4cdd60b55401c0be2c1dfc2fe307",
+                        "83c19e3117272a47c31935b7f6f1af32249f3f039497d6560186bce03bdfc35256c506d44dd822fc3f2806f1d66bdfb7a29d66a4f9765a40aa9e13b055f8ad08",
+                        "ebcd1afd66bdbe68c27d155ce1ea6aec9e5ae1a8357f76501201bc72b29b787112587fae958875521ada1c61a7411458c33432cb80ad69e564f0fb9290f02d04",
+                        "3713509ff2f1f94a21b706cc60f602f49670ce11ac10796c43166b914f425b216202913a6716d2170bbea8b2da07b9be146f3f67ab7baa10e00486d5fe8e7d04",
+                        "a23213cf418c51608a4a3a5c8f55723511624bd853e5e7fec0d3c79af6506952b3b8dfc0572c056edaf6be450b3ca64169e6c4fb9481e72c806f2bc6905e0001",
+                        "fe0bd7615b331f64061c993a2bea7b1542cb5588ab65419186c42e553bd90f56c5f2e9d804dd2a5bf11a285d52aded4a115ba98103f48adecd3cadea4bf81c05",
+                        "cfb1d9f28f922cb141eebf1a8dab93c3fd48b5a4f77f4108f4ebde84b176d6c4f439ccb53446bf9d6fceb130dc972beec87db0b63d841843f50fe70376b1f100",
+                        "51b7175624cfd628d95354072e23ef7f757f8948fe74364a3d2e87bfe0f9f2c0a38bf32cae72f446d541dbd302bd7253f04ce181d8f2b2441fb6312f14f99d01",
+                        "67427142b5ba543c842fe720f72b61022d80bdf9a86fee0338dc3464d193951db8b560fc60ddf5edeb49a5e6f0f2e2ed9485062ac18ff986f23ca3b4e6505a0b",
+                        "cd4aa4cc35ab50897549a1b1ea9739e7e1a512c322174bd4589e3103e4a51d7bce198f944ba1116d84cce6f5f28782e5b452fb447f49f693e1fe9935d6395e02",
+                        "a21142ce9455827f87e36227e9f2a72de4f255db633d7d0e9c996b532efd17b4980cbc51ad61b9654aaac1cda217c0ce58fa0310ed8740982e7faf11c32a5205",
+                        "efa28a5f400794cc97c7bcf012151ed48709698256baf347d61d736651adaac209f53124aeb71a7cfaff90df79abe54c7a20d39a0520cfdf3b5e57ca04da790e",
+                        "1994381eda1dc3594779515c0720a8305aa35f1a149e3e5e5b55fee4cb02c80182d551bf50789c1f83e5ecfbe03aa769fc8cd600501f1afe6b3e5728eef5ee0d",
+                        "a8ba1e1039f04e1c33b180dcdfc513d651e5768e8c7a2106b9abadf1b48e155609da2e017423a0b3c87aad42e2923c42fdd24bfd67916b84c69317c2e434d602",
+                        "459db621fc630d9a038e711aa3aa1e350b942011b2c772cbe076c18412922b48d3252687cd2d59f9963fce1ca13015b084a856958638a6b28908836822c40908",
+                        "d47f5db3a293bb99ebd5917c7d11a990f59649f41475a15ff82c2471099fd2d89a33f365594f71d44cbdeba3a2ceb2f8b27784d85f0780f0a2548f465aa00d06"
                     ]
                 },
                 "snapshot": {
                     "confirmedTransactions": [
-                        17,
-                        -8,
-                        -5,
-                        -26,
-                        18,
-                        -22,
-                        28,
-                        -27
+                        -11,
+                        -29,
+                        6,
+                        -18,
+                        21,
+                        19,
+                        22,
+                        15,
+                        20,
+                        -27,
+                        22,
+                        -18,
+                        22,
+                        -13,
+                        23,
+                        -14
                     ],
                     "headId": "84b7648a8cf0054963d3b096f90fd01a",
-                    "snapshotNumber": 9,
+                    "snapshotNumber": 21,
                     "utxo": [
                         -29,
-                        -27,
-                        -18,
+                        -28,
+                        -23,
+                        -21,
+                        -15,
                         -14,
-                        -13,
-                        -11,
-                        6,
-                        15,
+                        -10,
+                        -3,
+                        11,
                         19,
-                        20,
-                        21,
-                        22,
-                        23
+                        24
                     ]
                 },
-                "tag": "DecrementTx"
+                "tag": "IncrementTx"
             },
             "postTxError": {
                 "headId": "74f2ed384a0f753f8706e0a04103feb9",
@@ -99,39 +105,56 @@
         },
         {
             "message": {
-                "decommitRequester": {
-                    "vkey": "6250421a689f91e7b1e18875710835624d01d9d0fd031562127f019ebdffc859"
-                },
-                "tag": "ReqDec",
+                "tag": "ReqTx",
                 "transaction": {
-                    "id": 5,
+                    "id": -2,
                     "inputs": [
-                        -30,
-                        -23,
-                        -21,
-                        -20,
+                        -29,
+                        -27,
+                        -26,
+                        -25,
+                        -24,
                         -18,
-                        -17,
-                        -12,
+                        -14,
+                        -11,
                         -8,
+                        -7,
+                        -6,
                         -4,
                         -3,
-                        -2,
-                        0,
+                        -1,
+                        2,
+                        4,
+                        5,
                         6,
-                        8,
-                        16,
+                        9,
+                        17,
+                        18,
                         20,
-                        21,
+                        25,
                         27
                     ],
                     "outputs": [
-                        -29,
-                        -24,
-                        -19,
-                        -17,
-                        13,
-                        26
+                        -27,
+                        -25,
+                        -21,
+                        -18,
+                        -15,
+                        -3,
+                        -1,
+                        0,
+                        5,
+                        6,
+                        11,
+                        14,
+                        17,
+                        20,
+                        21,
+                        22,
+                        23,
+                        25,
+                        26,
+                        30
                     ]
                 }
             },
@@ -143,38 +166,25 @@
         },
         {
             "message": {
-                "tag": "ReqTx",
-                "transaction": {
-                    "id": -2,
-                    "inputs": [
-                        -25,
-                        -24,
-                        -21,
-                        -18,
-                        -3,
-                        6,
-                        17
-                    ],
-                    "outputs": [
-                        -28,
-                        -26,
-                        -20,
-                        -16,
-                        -3,
-                        -1,
-                        2,
-                        3,
-                        4,
-                        11,
-                        14,
-                        15,
-                        18,
-                        21,
-                        24,
-                        27,
-                        28
-                    ]
-                }
+                "commitRequester": {
+                    "vkey": "bb5b6ecd49200eb2785b3aa1300e56ef9030138266a2f1feacb76b1d99ec6fdc"
+                },
+                "incrementUTxO": [
+                    -29,
+                    -28,
+                    -22,
+                    -21,
+                    -17,
+                    -12,
+                    -9,
+                    -1,
+                    8,
+                    9,
+                    11,
+                    13,
+                    18
+                ],
+                "tag": "ReqInc"
             },
             "party": {
                 "vkey": "24c701586ebf817540eab9169b9f53cc5b444f0ae68f2a8e4614f4d92fc38161"
@@ -184,6 +194,19 @@
         },
         {
             "message": {
+                "commitUTxO": [
+                    -24,
+                    -17,
+                    -15,
+                    -10,
+                    -4,
+                    -1,
+                    4,
+                    10,
+                    18,
+                    22,
+                    23
+                ],
                 "decommitTx": {
                     "id": 9,
                     "inputs": [
@@ -221,26 +244,20 @@
                         28
                     ]
                 },
-                "snapshotNumber": 3,
+                "snapshotNumber": 17,
                 "tag": "ReqSn",
                 "transactionIds": [
-                    0,
+                    1,
+                    -30,
+                    23,
                     4,
-                    16,
-                    26,
-                    -19,
-                    -1,
-                    11,
-                    0,
-                    10,
-                    -6,
+                    24,
+                    2,
                     19,
-                    -2,
-                    -20,
-                    12,
-                    7,
-                    8,
-                    14
+                    4,
+                    24,
+                    30,
+                    -23
                 ]
             },
             "party": {

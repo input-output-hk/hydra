@@ -73,6 +73,8 @@ data StateChanged tx
       }
   | TransactionReceived {tx :: tx}
   | DecommitRecorded {decommitTx :: tx}
+  | CommitRecorded {commitUTxO :: UTxOType tx}
+  | CommitFinalized
   | DecommitFinalized
   | PartySignedSnapshot {snapshot :: Snapshot tx, party :: Party, signature :: Signature (Snapshot tx)}
   | SnapshotConfirmed {snapshot :: Snapshot tx, signatures :: MultiSignature (Snapshot tx)}

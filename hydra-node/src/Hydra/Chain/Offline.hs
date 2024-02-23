@@ -14,6 +14,7 @@ import Hydra.Chain (
   ChainEvent (..),
   ChainStateHistory,
   HeadParameters (..),
+  IncrementTxError (..),
   OnChainTx (..),
   PostTxError (..),
   chainSlot,
@@ -66,6 +67,7 @@ withOfflineChain OfflineChainConfig{ledgerGenesisFile, initialUTxOFile} party ch
     Chain
       { submitTx = const $ pure ()
       , draftCommitTx = \_ _ -> pure $ Left FailedToDraftTxNotInitializing
+      , draftIncrementTx = \_ _ _ _ _ -> pure $ Left $ FailedToConstructIncrementTx SnapshotMissingIncrementUTxO
       , postTx = const $ pure ()
       }
 

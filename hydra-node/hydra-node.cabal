@@ -52,6 +52,7 @@ library
     Hydra.API.Projection
     Hydra.API.Server
     Hydra.API.ServerOutput
+    Hydra.API.Subscription
     Hydra.API.WSServer
     Hydra.Chain
     Hydra.Chain.CardanoClient
@@ -271,6 +272,7 @@ test-suite tests
     Hydra.API.HTTPServerSpec
     Hydra.API.ServerOutputSpec
     Hydra.API.ServerSpec
+    Hydra.API.SubscriptionSpec
     Hydra.BehaviorSpec
     Hydra.Chain.Direct.Contract.Abort
     Hydra.Chain.Direct.Contract.Close
@@ -280,6 +282,7 @@ test-suite tests
     Hydra.Chain.Direct.Contract.Decrement
     Hydra.Chain.Direct.Contract.FanOut
     Hydra.Chain.Direct.Contract.Gen
+    Hydra.Chain.Direct.Contract.Increment
     Hydra.Chain.Direct.Contract.Init
     Hydra.Chain.Direct.Contract.Mutation
     Hydra.Chain.Direct.ContractSpec
