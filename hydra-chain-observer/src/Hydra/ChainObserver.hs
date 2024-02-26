@@ -24,7 +24,6 @@ import Hydra.Cardano.Api (
   UTxO,
   chainTipToChainPoint,
   connectToLocalNode,
-  convertTx,
   getChainPoint,
   getTxBody,
   getTxId,
@@ -172,8 +171,7 @@ chainSyncClient tracer networkId startingPoint observerHandler =
     ClientStNext
       { recvMsgRollForward = \blockInMode tip -> ChainSyncClient $ do
           let txs = case blockInMode of
-                BlockInMode ConwayEra (Block _header conwayTxs) -> mapMaybe convertTx conwayTxs
-                BlockInMode BabbageEra (Block _header babbageTxs) -> babbageTxs
+                BlockInMode ConwayEra (Block _header conwayTxs) -> conwayTxs
                 _ -> []
 
               (BlockInMode _ (Block bh@(BlockHeader _ _ blockNo) _)) = blockInMode

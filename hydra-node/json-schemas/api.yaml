@@ -1724,7 +1724,7 @@ components:
         type:
           type: string
           enum:
-            - "Tx BabbageEra"
+            - "Tx ConwayEra"
         description:
           type: string
         cborHex:
