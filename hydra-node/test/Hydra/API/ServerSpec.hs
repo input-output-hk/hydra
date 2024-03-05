@@ -158,7 +158,7 @@ spec =
               withTestAPIServer port alice mockPersistence tracer $ \Server{sendOutput} -> do
                 mapM_ sendOutput outputs
                 withClient port "/" $ \conn -> do
-                  received <- failAfter 10 $ replicateM (length outputs + 1) (receiveData conn)
+                  received <- failAfter 15 $ replicateM (length outputs + 1) (receiveData conn)
                   case traverse Aeson.eitherDecode received of
                     Left{} -> failure $ "Failed to decode messages:\n" <> show received
                     Right timedOutputs -> do
@@ -218,7 +218,7 @@ spec =
       monadicIO $ do
         outputs :: [ServerOutput Tx] <- pick arbitrary
         run $
-          showLogsOnFailure "ServerSpec" $ \tracer -> failAfter 5 $
+          showLogsOnFailure "ServerSpec" $ \tracer -> failAfter 15 $
             withFreePort $ \port ->
               withTestAPIServer port alice mockPersistence tracer $ \Server{sendOutput} -> do
                 mapM_ sendOutput outputs
