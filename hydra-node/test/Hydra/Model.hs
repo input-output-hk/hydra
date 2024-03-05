@@ -17,7 +17,7 @@
 -- modelling more complex transactions schemes...
 module Hydra.Model where
 
-import Hydra.Cardano.Api
+import Hydra.Cardano.Api hiding (utxoFromTx)
 import Hydra.Prelude hiding (Any, label, lookup)
 
 import Cardano.Api.UTxO (pairs)
@@ -164,6 +164,7 @@ instance StateModel WorldState where
     NewTx :: Party -> Payment -> Action WorldState Payment
     Wait :: DiffTime -> Action WorldState ()
     ObserveConfirmedTx :: Var Payment -> Action WorldState ()
+    Decommit :: Party -> Payment -> Action WorldState ()
     -- Check that all parties have observed the head as open
     ObserveHeadIsOpen :: Action WorldState ()
     RollbackAndForward :: Natural -> Action WorldState ()
@@ -238,6 +239,8 @@ instance StateModel WorldState where
   precondition WorldState{hydraState = Open{}} ObserveHeadIsOpen =
     True
   precondition WorldState{hydraState = Closed{}} (Fanout _) =
+    True
+  precondition WorldState{hydraState = Open{}} (Decommit _ _) =
     True
   precondition WorldState{hydraState = Open{}} (CloseWithInitialSnapshot _) =
     True
@@ -348,6 +351,19 @@ instance StateModel WorldState where
        where
         updateWithClose = \case
           Open{offChainState = OffChainState{confirmedUTxO}} -> Closed confirmedUTxO
+          _ -> error "unexpected state"
+      Decommit _ payment -> WorldState{hydraParties, hydraState = updateWithDecommit hydraState}
+       where
+        updateWithDecommit = \case
+          Open{headParameters, committed, offChainState = OffChainState{confirmedUTxO}} ->
+            Open
+              { headParameters
+              , committed
+              , offChainState =
+                  OffChainState
+                    { confirmedUTxO = confirmedUTxO `withoutUTxO` utxoFromTx payment
+                    }
+              }
           _ -> error "unexpected state"
       RollbackAndForward _numberOfBlocks -> s
       Wait _ -> s
@@ -551,6 +567,7 @@ instance
             Nothing -> error "The head is not open for node"
       CloseWithInitialSnapshot party ->
         performCloseWithInitialSnapshot st party
+      Decommit party payment -> performDecommit party payment
       RollbackAndForward numberOfBlocks ->
         performRollbackAndForward numberOfBlocks
       StopTheWorld ->
@@ -773,6 +790,20 @@ performCloseWithInitialSnapshot st party = do
           _ -> False
     _ -> error "Not in open state"
 
+performDecommit :: (MonadThrow m, MonadDelay m, MonadTimer m, MonadAsync m) => Party -> Payment -> RunMonad m ()
+performDecommit party payment = do
+  nodes <- gets nodes
+  let thisNode = nodes ! party
+  waitForOpen thisNode
+  let decommitTx = undefined
+  party `sendsInput` Input.Decommit decommitTx
+
+  lift $
+    waitUntilMatch (toList nodes) $ \case
+      DecommitFinalized{} -> True
+      err@CommandFailed{} -> error $ show err
+      _ -> False
+
 performRollbackAndForward :: (MonadThrow m, MonadTimer m) => Natural -> RunMonad m ()
 performRollbackAndForward numberOfBlocks = do
   SimulatedChainNetwork{rollbackAndForward} <- gets chain
@@ -832,6 +863,7 @@ showFromAction k = \case
   Wait{} -> k
   ObserveConfirmedTx{} -> k
   CloseWithInitialSnapshot{} -> k
+  Decommit{} -> k
   RollbackAndForward{} -> k
   StopTheWorld -> k
   ObserveHeadIsOpen -> k

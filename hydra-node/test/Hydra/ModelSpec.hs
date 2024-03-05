@@ -118,14 +118,17 @@ import Cardano.Api.UTxO qualified as UTxO
 import Control.Concurrent.Class.MonadSTM (newTVarIO)
 import Control.Monad.Class.MonadTimer ()
 import Control.Monad.IOSim (Failure (FailureException), IOSim, runSimTrace, traceResult)
+import Data.List qualified as List
 import Data.Map ((!))
 import Data.Map qualified as Map
+import Data.Maybe (fromJust)
 import Data.Set qualified as Set
 import GHC.IO (unsafePerformIO)
 import Hydra.API.ClientInput (ClientInput (..))
 import Hydra.API.ServerOutput (ServerOutput (..))
 import Hydra.BehaviorSpec (TestHydraClient (..), dummySimulatedChainNetwork)
 import Hydra.Chain.Direct.Fixture (testNetworkId)
+import Hydra.Ledger (UTxOType)
 import Hydra.Logging.Messages (HydraLog)
 import Hydra.Model (
   Action (ObserveConfirmedTx, ObserveHeadIsOpen, Wait),
@@ -187,6 +190,28 @@ spec = do
   prop "toRealUTxO is distributive" $ propIsDistributive toRealUTxO
   prop "toTxOuts is distributive" $ propIsDistributive toTxOuts
   prop "parties contest to wrong closed snapshot" prop_partyContestsToWrongClosedSnapshot
+  prop "can decommit funds from the Head" prop_partyWithdrawsFromHead
+
+prop_partyWithdrawsFromHead :: Property
+prop_partyWithdrawsFromHead =
+  forAllDL partyWithdrawsFromHead prop_HydraModel
+
+-- | Party can withdraw funds from the Head
+partyWithdrawsFromHead :: DL WorldState ()
+partyWithdrawsFromHead = do
+  headOpensIfAllPartiesCommit
+  getModelStateDL >>= \case
+    WorldState{hydraState = Open{offChainState = OffChainState{confirmedUTxO}}, hydraParties} -> do
+      -- TODO: pick random value
+      let (from, value) = List.head $ filter (not . null . valueToList . snd) confirmedUTxO
+      let party = deriveParty $ fst $ fromJust $ List.find ((== from) . snd) hydraParties
+      let payment = [(from, value)]
+      action_ $ Model.Decommit party undefined
+      -- TODO: Check if the decremented UTxO is no longer part of the confirmed UTxO
+      action_ $ Model.Close party
+      void $ action $ Model.Fanout party
+    _ -> pure ()
+  action_ Model.StopTheWorld
 
 propIsDistributive :: (Show b, Eq b, Semigroup a, Semigroup b) => (a -> b) -> a -> a -> Property
 propIsDistributive f x y =
@@ -369,20 +394,21 @@ assertBalancesInOpenHeadAreConsistent world nodes p = do
       assert (expectedBalance == actualBalance)
     _ -> do
       pure ()
- where
-  getUTxO node = lift $ do
-    node `send` GetUTxO
-    let loop =
-          waitForNext node >>= \case
-            GetUTxOResponse _ u -> pure u
-            _ -> loop
-    loop
 
 --
 
 -- * Utilities for `IOSim`
 
 --
+
+getUTxO :: (MonadTrans t, Monad m) => TestHydraClient tx m -> t m (UTxOType tx)
+getUTxO node = lift $ do
+  node `send` GetUTxO
+  let loop =
+        waitForNext node >>= \case
+          GetUTxOResponse _ u -> pure u
+          _ -> loop
+  loop
 
 -- | Specialised runner similar to <monadicST https://hackage.haskell.org/package/QuickCheck-2.14.3/docs/Test-QuickCheck-Monadic.html#v:monadicST>.
 runIOSimProp :: Testable a => (forall s. PropertyM (RunMonad (IOSim s)) a) -> Property
