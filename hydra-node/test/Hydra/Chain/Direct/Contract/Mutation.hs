@@ -783,10 +783,11 @@ replaceParties parties = \case
       , Head.headId = headId
       , Head.seed = seed
       }
-  Head.Open{contestationPeriod, utxoHash, headId} ->
+  Head.Open{contestationPeriod, snapshotNumber, utxoHash, headId} ->
     Head.Open
       { Head.contestationPeriod = contestationPeriod
       , Head.parties = parties
+      , Head.snapshotNumber = snapshotNumber
       , Head.utxoHash = utxoHash
       , Head.headId = headId
       }
@@ -805,10 +806,11 @@ replaceParties parties = \case
 
 replaceUtxoHash :: Head.Hash -> Head.State -> Head.State
 replaceUtxoHash utxoHash = \case
-  Head.Open{contestationPeriod, parties, headId} ->
+  Head.Open{contestationPeriod, snapshotNumber, parties, headId} ->
     Head.Open
       { Head.contestationPeriod = contestationPeriod
       , Head.parties = parties
+      , Head.snapshotNumber = snapshotNumber
       , Head.utxoHash = utxoHash
       , Head.headId = headId
       }
@@ -864,10 +866,11 @@ replaceHeadId headId = \case
       , Head.headId = headId
       , Head.seed = seed
       }
-  Head.Open{contestationPeriod, utxoHash, parties} ->
+  Head.Open{contestationPeriod, utxoHash, snapshotNumber, parties} ->
     Head.Open
       { Head.contestationPeriod = contestationPeriod
       , Head.parties = parties
+      , Head.snapshotNumber = snapshotNumber
       , Head.utxoHash = utxoHash
       , Head.headId = headId
       }
