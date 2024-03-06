@@ -37,6 +37,7 @@ import Hydra.Chain.Direct.Tx (
   DecrementObservation (..),
   FanoutObservation (..),
   HeadObservation (..),
+  IncrementObservation (..),
   InitObservation (..),
   observeHeadTx,
  )

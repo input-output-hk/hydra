@@ -51,21 +51,7 @@ import Hydra.Chain.Direct.Contract.Mutation (
 import Hydra.Chain.Direct.Fixture (slotLength, systemStart, testNetworkId)
 import Hydra.Chain.Direct.State (ChainContext (..), ChainState (..), ClosedState (..), HasKnownUTxO (getKnownUTxO), HydraContext (..), InitialState (..), OpenState (..), abort, closedThreadOutput, commit, ctxHeadParameters, ctxParticipants, ctxParties, genChainStateWithTx, genCloseTx, genCollectComTx, genCommitFor, genCommits, genCommits', genContestTx, genFanoutTx, genHydraContext, genInitTx, genStInitial, getContestationDeadline, getKnownUTxO, initialize, observeClose, observeCollect, observeCommit, pickChainContext, unsafeAbort, unsafeClose, unsafeCollect, unsafeCommit, unsafeFanout, unsafeObserveInitAndCommits)
 import Hydra.Chain.Direct.State qualified as Transition
-import Hydra.Chain.Direct.Tx (
-  AbortObservation (..),
-  CloseObservation (..),
-  ClosedThreadOutput (closedContesters),
-  CollectComObservation (..),
-  CommitObservation (..),
-  ContestObservation (..),
-  DecrementObservation (..),
-  FanoutObservation (..),
-  HeadObservation (..),
-  NotAnInitReason (..),
-  observeCommitTx,
-  observeHeadTx,
-  observeInitTx,
- )
+import Hydra.Chain.Direct.Tx (AbortObservation (..), CloseObservation (..), ClosedThreadOutput (closedContesters), CollectComObservation (..), CommitObservation (..), ContestObservation (..), DecrementObservation (..), FanoutObservation (..), HeadObservation (..), IncrementObservation (..), NotAnInitReason (..), observeCommitTx, observeHeadTx, observeInitTx)
 import Hydra.ContestationPeriod (toNominalDiffTime)
 import Hydra.Contract.HeadTokens qualified as HeadTokens
 import Hydra.Contract.Initial qualified as Initial
