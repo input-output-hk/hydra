@@ -44,9 +44,9 @@ import Hydra.HeadLogic (
   SeenSnapshot (NoSeenSnapshot, SeenSnapshot),
   WaitReason (..),
   aggregateState,
+  cause,
   defaultTTL,
   update,
-  cause,
  )
 import Hydra.HeadLogic.State (getHeadParameters)
 import Hydra.Ledger (ChainSlot (..), IsTx (..), Ledger (..), ValidationError (..))

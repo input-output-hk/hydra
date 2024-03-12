@@ -17,14 +17,11 @@ import System.FilePath ((</>))
 import System.IO.Unsafe (unsafePerformIO)
 import Test.Aeson.GenericSpecs (roundtripAndGoldenSpecs)
 import Test.Hspec.Wai (MatchBody (..), ResponseMatcher (matchBody), get, shouldRespondWith, with)
-import Test.QuickCheck.Property
-    ( counterexample,
-      forAll,
-      property,
-      counterexample,
-      forAll,
-      property,
-      )
+import Test.QuickCheck.Property (
+  counterexample,
+  forAll,
+  property,
+ )
 
 spec :: Spec
 spec = do
