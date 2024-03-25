@@ -13,10 +13,15 @@ import Hydra.Cardano.Api
 import Hydra.Prelude
 
 import Cardano.Api.UTxO qualified as UTxO
+import Cardano.Ledger.Api (EraTxBody (outputsTxBodyL), bodyTxL)
+import Cardano.Ledger.Api.Tx (reqSignerHashesTxBodyL)
+import Control.Lens ((%~), (<>~))
 import Data.Aeson qualified as Aeson
 import Data.ByteString qualified as BS
 import Data.ByteString.Base16 qualified as Base16
 import Data.Map qualified as Map
+import Data.Sequence.Strict ((|>))
+import Data.Set qualified as Set
 import Hydra.Cardano.Api.Network (networkIdToNetwork)
 import Hydra.Chain (HeadParameters (..))
 import Hydra.Chain.Direct.ScriptRegistry (ScriptRegistry (..))
@@ -217,22 +222,27 @@ commitTx ::
   ScriptRegistry ->
   HeadId ->
   Party ->
-  -- | The UTxO to commit to the Head along with witnesses.
-  UTxO' (TxOut CtxUTxO, Witness WitCtxTxIn) ->
+  UTxO ->
+  Tx ->
   -- | The initial output (sent to each party) which should contain the PT and is
   -- locked by initial script
   (TxIn, TxOut CtxUTxO, Hash PaymentKey) ->
   Tx
-commitTx networkId scriptRegistry headId party utxoToCommitWitnessed (initialInput, out, vkh) =
-  unsafeBuildTransaction $
-    emptyTxBody
-      & addInputs [(initialInput, initialWitness)]
-      & addReferenceInputs [initialScriptRef]
-      & addInputs committedTxIns
-      & addExtraRequiredSigners [vkh]
-      & addOutputs [commitOutput]
-      & setTxMetadata (TxMetadataInEra $ mkHydraHeadV1TxName "CommitTx")
+commitTx networkId scriptRegistry headId party _lookupUtxO blueprintTx (initialInput, out, vkh) =
+  fromLedgerTx $
+    toLedgerTx blueprintTx
+      & bodyTxL . reqSignerHashesTxBodyL <>~ Set.singleton (toLedgerKeyHash vkh)
+      & bodyTxL . outputsTxBodyL %~ (|> toLedgerTxOut commitOutput)
  where
+  -- unsafeBuildTransaction $
+  --   emptyTxBody
+  --     & addInputs [(initialInput, initialWitness)]
+  --     & addReferenceInputs [initialScriptRef]
+  --     & addInputs committedTxIns
+  --     & addExtraRequiredSigners [vkh]
+  --     & addOutputs [commitOutput]
+  --     & setTxMetadata (TxMetadataInEra $ mkHydraHeadV1TxName "CommitTx")
+
   initialWitness =
     BuildTxWith $
       ScriptWitness scriptWitnessInCtx $

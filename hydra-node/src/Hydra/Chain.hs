@@ -247,8 +247,9 @@ data Chain tx m = Chain
   , draftCommitTx ::
       MonadThrow m =>
       HeadId ->
-      UTxO' (TxOut CtxUTxO, Witness WitCtxTxIn) ->
-      m (Either (PostTxError Tx) Tx)
+      UTxOType tx ->
+      tx ->
+      m (Either (PostTxError tx) tx)
   -- ^ Create a commit transaction using user provided utxos (zero or many) and
   -- information to spend from a script. Errors are handled at the call site.
   , submitTx :: MonadThrow m => Tx -> m ()

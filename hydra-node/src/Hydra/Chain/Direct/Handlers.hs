@@ -159,7 +159,7 @@ mkChain tracer queryTimeHandle wallet@TinyWallet{getUTxO} ctx LocalChainState{ge
         submitTx vtx
     , -- Handle that creates a draft commit tx using the user utxo.
       -- Possible errors are handled at the api server level.
-      draftCommitTx = \headId utxoToCommit -> do
+      draftCommitTx = \headId lookupUTxO blueprintTx -> do
         ChainStateAt{spendableUTxO} <- atomically getLatest
         walletUtxos <- atomically getUTxO
         let walletTxIns = fromLedgerTxIn <$> Map.keys walletUtxos
