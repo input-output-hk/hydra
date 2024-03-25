@@ -460,7 +460,7 @@ the to be closed snapshot and $\mathsf{CloseType}$ is a hint against which state
 	  \[
 		s' = 0
 	  \]
-	  \item Nominal close: Closing snapshot is referencing the current state $\eta$ and no UTxO is pending to be committed or decommitted.
+	  \item Nominal close: Closing snapshot refers to current state $\eta$ and no UTxO is pending to be committed or decommitted.
 	  \[
 		\msVfy(\hydraKeysAgg,(\cid || s' || \eta_{\mathsf{cur}}|| \eta' || \bot || \bot),\xi) = \true
 	  \]
@@ -516,15 +516,30 @@ $\redeemerHead = (\mathsf{contest}, \xi)$, where $\xi$ is a multi-signature of
 the contest snapshot, and checks:
 \begin{menumerate}
 	\item State stays $\stClosed$ in both $\datumHead$ and $\datumHead'$,
-	parameters $\cid,\hydraKeysAgg,\nop,\cPer, \textcolor{red}{\eta_{0}}$ stay
+	parameters $\cid,\hydraKeysAgg,\nop,\cPer$ stay
 	unchanged and the new state is governed again by $\nuHead$:
 	\[
-		(\stClosed,\cid,\hydraKeysAgg,\nop,\cPer,\eta_0,s,\eta,\contesters,\Tfinal) \xrightarrow[\xi]{\stContest} (\stClosed,\cid,\hydraKeysAgg,\nop,\cPer,\eta_0,s',\eta',\contesters',\Tfinal')
+		(\stClosed,\cid,\hydraKeysAgg,\nop,\cPer,s',\textcolor{red}{\eta_{c},\eta,\eta_{\Delta}},\contesters,\Tfinal) \xrightarrow[\xi]{\stContest} (\stClosed,\cid,\hydraKeysAgg,\nop,\cPer,s',\textcolor{red}{\eta_{c},\eta',\eta_{\Delta}'},\contesters',\Tfinal')
 	\]
-	\item Contested snapshot number is newer $s' > s$, where $s$ is the
-	currently stored and $s'$ the snapshot number of the contest snapshot.
-	\item $\xi$ is a valid multi-signature of the new snapshot state
+
+	\item Contested snapshot number $s'$ is higher than the currently stored snapshot number $s$
+	\[
+		s' > s
+	\]
+	\item We distinguish these cases: \todo{what happens to $\eta_{\Delta}$ if it is there?}
+
+	\begin{menumerate}
+	  \item Nominal contest: Contesting snapshot refers to currently closed state $\eta$ and no UTxO is pending to be committed or decommitted.
+	  \item Preemptive close: The head is contested with a snapshot that references the currently closed state $\eta$, but has either pending UTxO to commit, decommit or both.
+	  \item Pending close: The head is contested with a snapshot that references the originally closed $\eta_{c}$ and has either pending UTxO to commit, decommit or both.
+	\end{menumerate}
+
+
+
+
+	\textcolor{red}{Ensure $\eta_{\Delta}$ evolves correctly!?} $\xi$ is a valid multi-signature of the new snapshot state
 	$\msVfy(\hydraKeysAgg,(\cid || s' || \textcolor{red}{\eta_{0}} || \eta'),\xi) = \true$. \todo{$\eta_{0}$ replacement}
+
 	\item The single signer $\{\keyHash\} = \txKeys$ has not already contested
 	$\keyHash \notin \contesters$ and is added to the set of contesters
 	$\contesters' = \contesters \cup \keyHash$.
