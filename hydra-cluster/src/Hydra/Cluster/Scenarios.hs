@@ -24,6 +24,8 @@ import Data.Aeson.Lens (key, values, _JSON)
 import Data.Aeson.Types (parseMaybe)
 import Data.ByteString (isInfixOf)
 import Data.ByteString qualified as B
+import Data.List qualified as List
+import Data.Maybe (fromJust)
 import Data.Set qualified as Set
 import Hydra.API.HTTPServer (
   DraftCommitTxRequest (..),
@@ -318,7 +320,7 @@ singlePartyCommitsExternalScriptWithInlineDatum tracer workDir node hydraScripts
 
       -- Commit the script output using known witness
       let clientPayload =
-            DraftCommitTxRequest
+            SimpleCommitRequest
               { utxoToCommit =
                   UTxO.singleton
                     ( scriptTxIn
@@ -376,7 +378,7 @@ singlePartyCommitsFromExternalScript tracer workDir node hydraScriptsTxId =
 
       -- Commit the script output using known witness
       let clientPayload =
-            DraftCommitTxRequest
+            SimpleCommitRequest
               { utxoToCommit =
                   UTxO.singleton
                     ( scriptTxIn
@@ -405,6 +407,62 @@ singlePartyCommitsFromExternalScript tracer workDir node hydraScriptsTxId =
       lockedUTxO `shouldBe` Just (toJSON $ UTxO.singleton (scriptTxIn, scriptTxOut))
  where
   RunningNode{networkId, nodeSocket, blockTime} = node
+
+-- | Single hydra-node where the commit is done from an raw transaction
+-- blueprint.
+singlePartyCommitsFromExternalTxBlueprint ::
+  Tracer IO EndToEndLog ->
+  FilePath ->
+  RunningNode ->
+  TxId ->
+  IO ()
+singlePartyCommitsFromExternalTxBlueprint tracer workDir node hydraScriptsTxId =
+  (`finally` returnFundsToFaucet tracer node Alice) $ do
+    refuelIfNeeded tracer node Alice 10_000_000
+    aliceChainConfig <- chainConfigFor Alice workDir nodeSocket hydraScriptsTxId [] $ UnsafeContestationPeriod 100
+    let hydraNodeId = 1
+    let hydraTracer = contramap FromHydraNode tracer
+    (aliceExternalVk, aliceExternalSk) <- keysFor Alice
+    withHydraNode hydraTracer aliceChainConfig workDir hydraNodeId aliceSk [] [1] $ \n1 -> do
+      send n1 $ input "Init" []
+      headId <- waitMatch (10 * blockTime) n1 $ headIsInitializingWith (Set.fromList [alice])
+
+      -- Commit the script output using known witness
+      let utxoToCommit = generateWith arbitrary 42
+          committedUTxO = List.head $ UTxO.pairs utxoToCommit
+          paymentFromAliceToSelf = 2_000_000
+      let tx =
+            fromJust . eitherToMaybe $
+              mkSimpleTx
+                committedUTxO
+                (mkVkAddress networkId aliceExternalVk, lovelaceToValue paymentFromAliceToSelf)
+                aliceExternalSk
+      let clientPayload =
+            FullCommitRequest
+              { blueprintTx = tx
+              }
+      res <-
+        runReq defaultHttpConfig $
+          req
+            POST
+            (http "127.0.0.1" /: "commit")
+            (ReqBodyJson clientPayload)
+            (Proxy :: Proxy (JsonResponse DraftCommitTxResponse))
+            (port $ 4000 + hydraNodeId)
+
+      let DraftCommitTxResponse{commitTx} = responseBody res
+      submitTx node commitTx
+
+      lockedUTxO <- waitMatch (10 * blockTime) n1 $ \v -> do
+        guard $ v ^? key "headId" == Just (toJSON headId)
+        guard $ v ^? key "tag" == Just "HeadIsOpen"
+        pure $ v ^? key "utxo"
+      lockedUTxO `shouldBe` Just (toJSON $ utxoToCommit)
+ where
+  RunningNode{networkId, nodeSocket, blockTime} = node
+  eitherToMaybe = \case
+    Left _ -> Nothing
+    Right x -> Just x
 
 singlePartyCannotCommitExternallyWalletUtxo ::
   Tracer IO EndToEndLog ->

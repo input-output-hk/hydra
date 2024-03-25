@@ -10,7 +10,7 @@ import Control.Concurrent.Class.MonadSTM (newTBQueueIO, readTBQueue, writeTBQueu
 import Control.Exception (Handler (Handler), IOException, catches)
 import Data.Aeson (eitherDecodeStrict, encode)
 import Hydra.API.ClientInput (ClientInput)
-import Hydra.API.HTTPServer (DraftCommitTxRequest (DraftCommitTxRequest), DraftCommitTxResponse (..), TxOutWithWitness (TxOutWithWitness))
+import Hydra.API.HTTPServer (DraftCommitTxRequest (..), DraftCommitTxResponse (..), TxOutWithWitness (TxOutWithWitness))
 import Hydra.API.ServerOutput (TimedServerOutput)
 import Hydra.Cardano.Api (
   AsType (AsPaymentKey, AsSigningKey),
@@ -105,7 +105,7 @@ withClient Options{hydraNodeHost = Host{hostname, port}, cardanoSigningKey, card
       Req.req
         Req.POST
         (Req.http hostname Req./: "commit")
-        (Req.ReqBodyJson . DraftCommitTxRequest $ (`TxOutWithWitness` Nothing) <$> payload)
+        (Req.ReqBodyJson . SimpleCommitRequest $ (`TxOutWithWitness` Nothing) <$> payload)
         Req.jsonResponse
         (Req.port $ fromIntegral port)
 

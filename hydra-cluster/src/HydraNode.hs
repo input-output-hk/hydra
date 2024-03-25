@@ -177,7 +177,7 @@ requestCommitTx' HydraClient{hydraNodeId} utxos =
     Req.req
       POST
       (Req.http "127.0.0.1" /: "commit")
-      (ReqBodyJson $ DraftCommitTxRequest utxos)
+      (ReqBodyJson $ SimpleCommitRequest utxos)
       (Proxy :: Proxy (JsonResponse DraftCommitTxResponse))
       (Req.port $ 4_000 + hydraNodeId)
 

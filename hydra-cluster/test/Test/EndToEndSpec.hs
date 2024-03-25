@@ -70,6 +70,7 @@ import Hydra.Cluster.Scenarios (
   singlePartyCannotCommitExternallyWalletUtxo,
   singlePartyCommitsExternalScriptWithInlineDatum,
   singlePartyCommitsFromExternalScript,
+  singlePartyCommitsFromExternalTxBlueprint,
   singlePartyHeadFullLifeCycle,
   testPreventResumeReconfiguredPeer,
   threeNodesNoErrorsOnOpen,
@@ -197,6 +198,11 @@ spec = around (showLogsOnFailure "EndToEndSpec") $ do
           withCardanoNodeDevnet (contramap FromCardanoNode tracer) tmpDir $ \node ->
             publishHydraScriptsAs node Faucet
               >>= canSubmitTransactionThroughAPI tracer tmpDir node
+      it "commits from external with tx blueprint" $ \tracer -> do
+        withClusterTempDir $ \tmpDir -> do
+          withCardanoNodeDevnet (contramap FromCardanoNode tracer) tmpDir $ \node ->
+            publishHydraScriptsAs node Faucet
+              >>= singlePartyCommitsFromExternalTxBlueprint tracer tmpDir node
 
     describe "three hydra nodes scenario" $ do
       it "does not error when all nodes open the head concurrently" $ \tracer ->

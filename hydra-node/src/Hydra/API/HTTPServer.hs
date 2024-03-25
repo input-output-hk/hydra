@@ -110,17 +110,22 @@ instance Arbitrary TxOutWithWitness where
 
 deriving newtype instance Arbitrary (UTxO' TxOutWithWitness)
 
-newtype DraftCommitTxRequest = DraftCommitTxRequest
-  { utxoToCommit :: UTxO' TxOutWithWitness
-  }
+data DraftCommitTxRequest
+  = SimpleCommitRequest
+      { utxoToCommit :: UTxO' TxOutWithWitness
+      }
+  | FullCommitRequest
+      { blueprintTx :: Tx
+      }
   deriving stock (Eq, Show, Generic)
-  deriving newtype (ToJSON, FromJSON)
+  deriving anyclass (ToJSON, FromJSON)
 
 instance Arbitrary DraftCommitTxRequest where
   arbitrary = genericArbitrary
 
   shrink = \case
-    DraftCommitTxRequest u -> DraftCommitTxRequest <$> shrink u
+    SimpleCommitRequest u -> SimpleCommitRequest <$> shrink u
+    FullCommitRequest b -> FullCommitRequest <$> shrink b
 
 newtype SubmitTxRequest tx = SubmitTxRequest
   { txToSubmit :: tx
@@ -264,7 +269,9 @@ handleDraftCommitUtxo directChain getInitializingHeadId body = do
   case Aeson.eitherDecode' body :: Either String DraftCommitTxRequest of
     Left err ->
       pure $ responseLBS status400 [] (Aeson.encode $ Aeson.String $ pack err)
-    Right DraftCommitTxRequest{utxoToCommit} -> do
+    Right FullCommitRequest{blueprintTx} -> do
+      pure undefined
+    Right SimpleCommitRequest{utxoToCommit} -> do
       atomically getInitializingHeadId >>= \case
         Just headId -> do
           draftCommitTx headId (fromTxOutWithWitness <$> utxoToCommit) <&> \case
