@@ -113,7 +113,9 @@ computeCommitCost = do
     (cctx, stInitial) <- genStInitial ctx
     let InitialState{headId} = stInitial
         knownUTxO = getKnownUTxO stInitial <> getKnownUTxO cctx
-    pure (commit cctx headId knownUTxO utxo, knownUTxO)
+        -- TODO: revisit
+        blueprintTx = undefined
+    pure (commit cctx headId knownUTxO utxo blueprintTx, knownUTxO)
 
 computeCollectComCost :: IO [(NumParties, Natural, TxSize, MemUnit, CpuUnit, Coin)]
 computeCollectComCost =

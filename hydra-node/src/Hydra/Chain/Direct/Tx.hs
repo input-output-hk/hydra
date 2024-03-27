@@ -13,10 +13,14 @@ import Hydra.Cardano.Api
 import Hydra.Prelude
 
 import Cardano.Api.UTxO qualified as UTxO
+import Cardano.Ledger.Api (bodyTxL, inputsTxBodyL, outputsTxBodyL, referenceInputsTxBodyL, reqSignerHashesTxBodyL)
+import Control.Lens ((%~), (<>~))
 import Data.Aeson qualified as Aeson
 import Data.ByteString qualified as BS
 import Data.ByteString.Base16 qualified as Base16
 import Data.Map qualified as Map
+import Data.Sequence.Strict ((|>))
+import Data.Set qualified as Set
 import Hydra.Cardano.Api.Network (networkIdToNetwork)
 import Hydra.Chain (HeadParameters (..))
 import Hydra.Chain.Direct.ScriptRegistry (ScriptRegistry (..))
@@ -218,21 +222,32 @@ commitTx ::
   HeadId ->
   Party ->
   -- | The UTxO to commit to the Head along with witnesses.
-  UTxO' (TxOut CtxUTxO, Witness WitCtxTxIn) ->
+  UTxO ->
+  -- | _Blueprint_ transaction.
+  Tx ->
   -- | The initial output (sent to each party) which should contain the PT and is
   -- locked by initial script
   (TxIn, TxOut CtxUTxO, Hash PaymentKey) ->
   Tx
-commitTx networkId scriptRegistry headId party utxoToCommitWitnessed (initialInput, out, vkh) =
-  unsafeBuildTransaction $
-    emptyTxBody
-      & addInputs [(initialInput, initialWitness)]
-      & addReferenceInputs [initialScriptRef]
-      & addInputs committedTxIns
-      & addExtraRequiredSigners [vkh]
-      & addOutputs [commitOutput]
-      & setTxMetadata (TxMetadataInEra $ mkHydraHeadV1TxName "CommitTx")
+commitTx networkId scriptRegistry headId party utxoToCommit blueprintTx (initialInput, out, vkh) =
+  fromLedgerTx $
+    toLedgerTx blueprintTx
+      -- TODO: don't forget about initialWitness and metadata
+      & bodyTxL . inputsTxBodyL <>~ Set.singleton (toLedgerTxIn initialInput)
+      & bodyTxL . inputsTxBodyL <>~ Set.fromList (toLedgerTxIn <$> committedTxIns)
+      & bodyTxL . referenceInputsTxBodyL <>~ Set.fromList [toLedgerTxIn initialScriptRef]
+      & bodyTxL . outputsTxBodyL %~ (|> toLedgerTxOut commitOutput)
+      & bodyTxL . reqSignerHashesTxBodyL <>~ Set.singleton (toLedgerKeyHash vkh)
  where
+  -- unsafeBuildTransaction $
+  --   emptyTxBody
+  --     & addInputs [(initialInput, initialWitness)]
+  --     & addReferenceInputs [initialScriptRef]
+  --     & addInputs committedTxIns
+  --     & addExtraRequiredSigners [vkh]
+  --     & addOutputs [commitOutput]
+  --     & setTxMetadata (TxMetadataInEra $ mkHydraHeadV1TxName "CommitTx")
+
   initialWitness =
     BuildTxWith $
       ScriptWitness scriptWitnessInCtx $
@@ -246,10 +261,10 @@ commitTx networkId scriptRegistry headId party utxoToCommitWitnessed (initialInp
 
   initialRedeemer =
     toScriptData . Initial.redeemer $
-      Initial.ViaCommit (toPlutusTxOutRef . fst <$> committedTxIns)
+      Initial.ViaCommit (toPlutusTxOutRef <$> committedTxIns)
 
   committedTxIns =
-    map (\(i, (_, w)) -> (i, BuildTxWith w)) $ UTxO.pairs utxoToCommitWitnessed
+    fst <$> UTxO.pairs utxoToCommit
 
   commitOutput =
     TxOut commitAddress commitValue commitDatum ReferenceScriptNone
@@ -265,8 +280,6 @@ commitTx networkId scriptRegistry headId party utxoToCommitWitnessed (initialInp
 
   commitDatum =
     mkTxOutDatumInline $ mkCommitDatum party utxoToCommit (headIdToCurrencySymbol headId)
-
-  utxoToCommit = fst <$> utxoToCommitWitnessed
 
 mkCommitDatum :: Party -> UTxO -> CurrencySymbol -> Plutus.Datum
 mkCommitDatum party utxo headId =

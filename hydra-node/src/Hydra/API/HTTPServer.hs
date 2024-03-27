@@ -274,7 +274,10 @@ handleDraftCommitUtxo directChain getInitializingHeadId body = do
     Right SimpleCommitRequest{utxoToCommit} -> do
       atomically getInitializingHeadId >>= \case
         Just headId -> do
-          draftCommitTx headId (fromTxOutWithWitness <$> utxoToCommit) <&> \case
+          -- TODO: revisit
+          let blueprintTx = undefined
+          let utxo = undefined -- (fromTxOutWithWitness <$> utxoToCommit)
+          draftCommitTx headId undefined blueprintTx <&> \case
             Left e ->
               -- Distinguish between errors users can actually benefit from and
               -- other errors that are turned into 500 responses.

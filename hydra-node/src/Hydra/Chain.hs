@@ -22,6 +22,7 @@ import Hydra.Cardano.Api (
   CtxUTxO,
   Tx,
   TxOut,
+  UTxO,
   UTxO',
   WitCtxTxIn,
   Witness,
@@ -247,7 +248,8 @@ data Chain tx m = Chain
   , draftCommitTx ::
       MonadThrow m =>
       HeadId ->
-      UTxO' (TxOut CtxUTxO, Witness WitCtxTxIn) ->
+      UTxO ->
+      Tx ->
       m (Either (PostTxError Tx) Tx)
   -- ^ Create a commit transaction using user provided utxos (zero or many) and
   -- information to spend from a script. Errors are handled at the call site.

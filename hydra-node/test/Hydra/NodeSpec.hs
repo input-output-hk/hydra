@@ -320,7 +320,7 @@ mockChain :: MonadThrow m => Chain SimpleTx m
 mockChain =
   Chain
     { postTx = \_ -> pure ()
-    , draftCommitTx = \_ _ -> failure "mockChain: unexpected draftCommitTx"
+    , draftCommitTx = \_ _ _ -> failure "mockChain: unexpected draftCommitTx"
     , submitTx = \_ -> failure "mockChain: unexpected submitTx"
     }
 

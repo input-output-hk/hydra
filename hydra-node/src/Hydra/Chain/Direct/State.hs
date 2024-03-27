@@ -18,7 +18,6 @@ import Hydra.Cardano.Api (
   ChainPoint (..),
   CtxUTxO,
   Key (SigningKey, VerificationKey, verificationKeyHash),
-  KeyWitnessInCtx (..),
   NetworkId (Mainnet, Testnet),
   NetworkMagic (NetworkMagic),
   PaymentKey,
@@ -32,8 +31,6 @@ import Hydra.Cardano.Api (
   TxOut,
   UTxO,
   UTxO' (UTxO),
-  WitCtxTxIn,
-  Witness,
   chainPointToSlotNo,
   fromPlutusScript,
   fromScriptData,
@@ -50,7 +47,6 @@ import Hydra.Cardano.Api (
   valueFromList,
   valueToList,
   pattern ByronAddressInEra,
-  pattern KeyWitness,
   pattern ReferenceScript,
   pattern ReferenceScriptNone,
   pattern ShelleyAddressInEra,
@@ -336,41 +332,23 @@ initialize ctx =
 -- and check the given 'UTxO' to be compatible. Hence, this function does fail
 -- if already committed or if the head is not initializing.
 --
--- NOTE: This version of 'commit' does only commit outputs which are held by
--- payment keys. For a variant which supports committing scripts, see `commit'`.
+-- NOTE: A simpler variant only supporting pubkey outputs is 'commit'.
 commit ::
   ChainContext ->
   HeadId ->
   -- | Spendable 'UTxO'
   UTxO ->
-  -- | 'UTxO' to commit. All outputs are assumed to be owned by public keys.
-  UTxO ->
-  Either (PostTxError Tx) Tx
-commit ctx headId spendableUTxO utxoToCommit =
-  commit' ctx headId spendableUTxO $ utxoToCommit <&> (,KeyWitness KeyWitnessForSpending)
-
--- | Construct a commit transaction based on known, spendable UTxO and some
--- arbitrary UTxOs to commit. This does look for "our initial output" to spend
--- and check the given 'UTxO' to be compatible. Hence, this function does fail
--- if already committed or if the head is not initializing.
---
--- NOTE: A simpler variant only supporting pubkey outputs is 'commit'.
-commit' ::
-  ChainContext ->
-  HeadId ->
-  -- | Spendable 'UTxO'
-  UTxO ->
   -- | 'UTxO' to commit, along with witnesses to spend them.
-  UTxO' (TxOut CtxUTxO, Witness WitCtxTxIn) ->
+  UTxO ->
+  Tx ->
   Either (PostTxError Tx) Tx
-commit' ctx headId spendableUTxO utxoToCommit = do
+commit ctx headId spendableUTxO utxoToCommit blueprintTx = do
   pid <- headIdToPolicyId headId ?> InvalidHeadId{headId}
   (i, o) <- ownInitial pid ?> CannotFindOwnInitial{knownUTxO = spendableUTxO}
-  let utxo = fst <$> utxoToCommit
-  rejectByronAddress utxo
-  rejectReferenceScripts utxo
-  rejectMoreThanMainnetLimit networkId utxo
-  pure $ commitTx networkId scriptRegistry headId ownParty utxoToCommit (i, o, vkh)
+  rejectByronAddress utxoToCommit
+  rejectReferenceScripts utxoToCommit
+  rejectMoreThanMainnetLimit networkId utxoToCommit
+  pure $ commitTx networkId scriptRegistry headId ownParty utxoToCommit blueprintTx (i, o, vkh)
  where
   ChainContext{networkId, ownParty, scriptRegistry, ownVerificationKey} = ctx
 
@@ -814,7 +792,9 @@ genChainStateWithTx =
     (cctx, stInitial) <- genStInitial ctx
     utxo <- genCommit
     let InitialState{headId} = stInitial
-    let tx = unsafeCommit cctx headId (getKnownUTxO stInitial) utxo
+    -- TODO: revisit
+    let blueprintTx = undefined
+    let tx = unsafeCommit cctx headId (getKnownUTxO stInitial) utxo blueprintTx
     pure (cctx, Initial stInitial, tx, Commit)
 
   genCollectWithState :: Gen (ChainContext, ChainState, Tx, ChainTransition)
@@ -965,7 +945,9 @@ genCommits' genUTxO ctx txInit = do
   allChainContexts <- deriveChainContexts ctx
   forM (zip allChainContexts scaledCommitUTxOs) $ \(cctx, toCommit) -> do
     let stInitial@InitialState{headId} = unsafeObserveInit cctx (ctxVerificationKeys ctx) txInit
-    pure $ unsafeCommit cctx headId (getKnownUTxO stInitial) toCommit
+    -- TODO: revisit
+    let blueprintTx = undefined
+    pure $ unsafeCommit cctx headId (getKnownUTxO stInitial) toCommit blueprintTx
  where
   scaleCommitUTxOs commitUTxOs =
     let numberOfUTxOs = length $ fold commitUTxOs
@@ -1095,9 +1077,10 @@ unsafeCommit ::
   UTxO ->
   -- | 'UTxO' to commit. All outputs are assumed to be owned by public keys.
   UTxO ->
+  Tx ->
   Tx
-unsafeCommit ctx headId spendableUTxO utxoToCommit =
-  either (error . show) id $ commit ctx headId spendableUTxO utxoToCommit
+unsafeCommit ctx headId spendableUTxO utxoToCommit blueprintTx =
+  either (error . show) id $ commit ctx headId spendableUTxO utxoToCommit blueprintTx
 
 unsafeAbort ::
   HasCallStack =>

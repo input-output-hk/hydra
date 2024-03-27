@@ -56,14 +56,16 @@ healthyCommitTx =
 
   setOutputsMinValue =
     bodyTxL . outputsTxBodyL . mapped %~ setMinCoinTxOut Fixture.pparams
-
+  -- TODO: revisit
+  blueprintTx = undefined
   tx =
     commitTx
       Fixture.testNetworkId
       scriptRegistry
       (mkHeadId Fixture.testPolicyId)
       commitParty
-      (healthyCommittedUTxO <&> (,KeyWitness KeyWitnessForSpending))
+      healthyCommittedUTxO
+      blueprintTx
       (healthyIntialTxIn, toUTxOContext healthyInitialTxOut, initialPubKeyHash)
 
   scriptRegistry = genScriptRegistry `generateWith` 42

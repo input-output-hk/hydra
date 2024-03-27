@@ -205,9 +205,11 @@ mockChainAndNetwork tr seedKeys commits = do
                 Initial InitialState{headId} -> headId
                 Open OpenState{headId} -> headId
                 Closed ClosedState{headId} -> headId
+              -- TODO: revisit
+              blueprintTx = undefined
           -- NOTE: We don't need to sign a tx here since the MockChain
           -- doesn't actually validate transactions using a real ledger.
-          eTx <- draftCommitTx hId $ (,KeyWitness KeyWitnessForSpending) <$> utxoToCommit
+          eTx <- draftCommitTx hId utxoToCommit blueprintTx
           case eTx of
             Left e -> throwIO e
             Right tx -> submitTx tx

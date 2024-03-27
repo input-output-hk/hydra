@@ -65,7 +65,7 @@ withOfflineChain OfflineChainConfig{ledgerGenesisFile, initialUTxOFile} party ch
   chainHandle =
     Chain
       { submitTx = const $ pure ()
-      , draftCommitTx = \_ _ -> pure $ Left FailedToDraftTxNotInitializing
+      , draftCommitTx = \_ _ _ -> pure $ Left FailedToDraftTxNotInitializing
       , postTx = const $ pure ()
       }
 

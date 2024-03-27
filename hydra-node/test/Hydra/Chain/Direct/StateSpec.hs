@@ -269,8 +269,10 @@ spec = parallel $ do
         hctx <- pickBlind $ genHydraContext maximumNumberOfParties
         (ctx, stInitial@InitialState{headId}) <- pickBlind $ genStInitial hctx
         utxo <- pick $ genUTxO1 genTxOutByron
+        -- TODO: revisit
+        let blueprintTx = undefined
         pure $
-          case commit ctx headId (getKnownUTxO stInitial) utxo of
+          case commit ctx headId (getKnownUTxO stInitial) utxo blueprintTx of
             Left UnsupportedLegacyOutput{} -> property True
             _ -> property False
 
@@ -279,8 +281,10 @@ spec = parallel $ do
         hctx <- pickBlind $ genHydraContext maximumNumberOfParties
         (ctx, stInitial@InitialState{headId}) <- pickBlind $ genStInitial hctx
         utxo <- pick $ genUTxO1 genTxOutWithReferenceScript
+        -- TODO: revisit
+        let blueprintTx = undefined
         pure $
-          case commit ctx headId (getKnownUTxO stInitial) utxo of
+          case commit ctx headId (getKnownUTxO stInitial) utxo blueprintTx of
             Left CannotCommitReferenceScript{} -> property True
             _ -> property False
 
@@ -290,8 +294,10 @@ spec = parallel $ do
         (ctx, stInitial@InitialState{headId}) <- pickBlind $ genStInitial hctx
         utxo <- pickBlind genAdaOnlyUTxOOnMainnetWithAmountBiggerThanOutLimit
         let mainnetChainContext = ctx{networkId = Mainnet}
+        -- TODO: revisit
+        let blueprintTx = undefined
         pure $
-          case commit mainnetChainContext headId (getKnownUTxO stInitial) utxo of
+          case commit mainnetChainContext headId (getKnownUTxO stInitial) utxo blueprintTx of
             Left CommittedTooMuchADAForMainnet{userCommittedLovelace, mainnetLimitLovelace} ->
               -- check that user committed more than our limit but also use 'maxMainnetLovelace'
               -- to be sure we didn't construct 'CommittedTooMuchADAForMainnet' wrongly
@@ -554,7 +560,9 @@ forAllCommit' action = do
       forAllBlind (genCommitFor $ ownVerificationKey ctx) $ \toCommit ->
         -- TODO: generate script inputs here? <- SB: what script inputs?
         let InitialState{headId} = stInitial
-            tx = unsafeCommit ctx headId (getKnownUTxO ctx <> getKnownUTxO stInitial) toCommit
+            -- TODO: revisit
+            blueprintTx = undefined
+            tx = unsafeCommit ctx headId (getKnownUTxO ctx <> getKnownUTxO stInitial) toCommit blueprintTx
          in action ctx stInitial toCommit tx
               & classify
                 (null toCommit)

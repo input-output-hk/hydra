@@ -48,7 +48,7 @@ import Hydra.Chain.Direct.State (
   chainSlotFromPoint,
   close,
   collect,
-  commit',
+  commit,
   contest,
   fanout,
   getKnownUTxO,
@@ -159,7 +159,7 @@ mkChain tracer queryTimeHandle wallet@TinyWallet{getUTxO} ctx LocalChainState{ge
         submitTx vtx
     , -- Handle that creates a draft commit tx using the user utxo.
       -- Possible errors are handled at the api server level.
-      draftCommitTx = \headId utxoToCommit -> do
+      draftCommitTx = \headId utxoToCommit blueprintTx -> do
         ChainStateAt{spendableUTxO} <- atomically getLatest
         walletUtxos <- atomically getUTxO
         let walletTxIns = fromLedgerTxIn <$> Map.keys walletUtxos
@@ -168,8 +168,8 @@ mkChain tracer queryTimeHandle wallet@TinyWallet{getUTxO} ctx LocalChainState{ge
         -- prevent trying to spend internal wallet's utxo
         if null matchedWalletUtxo
           then
-            traverse (finalizeTx wallet ctx spendableUTxO (fst <$> utxoToCommit)) $
-              commit' ctx headId spendableUTxO utxoToCommit
+            traverse (finalizeTx wallet ctx spendableUTxO utxoToCommit) $
+              commit ctx headId spendableUTxO utxoToCommit blueprintTx
           else pure $ Left SpendingNodeUtxoForbidden
     , -- Submit a cardano transaction to the cardano-node using the
       -- LocalTxSubmission protocol.
