@@ -290,6 +290,26 @@ E.g.:
 }
 ```
 
+## Incremental Decommits
+
+It is possible to _decommit_ or take some `UTxO` out of **L2** and put it back on
+**L1**. To do that one can use the `/decommit` API endpoint or a dedicated
+`Decommit` message sent using a websocket client. User needs to craft and send
+a decommit transaction which then needs to apply cleanly to the **L2** ledger
+state. This proves one is the owner of the UTxO it wants to take out of a
+`Head`.
+
+After `hydra-node` is able to apply decommit tx to it's local ledger state the
+`ReqDec` network message is emmitted to all participants in the `Head`. This
+message notifies all participants of a new decommit request and the decommit
+transaction gets recorded to their local state. Next leader will try to include
+the decommit `UTxO` into the next snapshot which is then signed by all parties.
+
+After seeing the signed snapshot containing the `UTxO` to decommit
+the_**decrement** transaction is put on the **L1** and re-observed by the
+`hydra-node`. After this we say that the decommit is **finalized** and
+corresponding `UTxO` is at this point present on **L1**.
+
 ## Example Setup
 
 ### Google Cloud w/ Terraform

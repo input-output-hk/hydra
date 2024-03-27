@@ -69,6 +69,8 @@ data StateChanged tx
       , newLocalTxs :: [tx]
       }
   | TransactionReceived {tx :: tx}
+  | DecommitRecorded {decommitTx :: tx}
+  | DecommitFinalized
   | PartySignedSnapshot {snapshot :: Snapshot tx, party :: Party, signature :: Signature (Snapshot tx)}
   | SnapshotConfirmed {snapshot :: Snapshot tx, signatures :: MultiSignature (Snapshot tx)}
   | HeadClosed {chainState :: ChainStateType tx, contestationDeadline :: UTCTime}
@@ -156,6 +158,7 @@ data WaitReason tx
   | WaitOnSeenSnapshot
   | WaitOnTxs {waitingForTxIds :: [TxIdType tx]}
   | WaitOnContestationDeadline
+  | WaitOnNotApplicableDecommitTx {waitingOnDecommitTx :: tx}
   deriving stock (Generic)
 
 deriving stock instance IsTx tx => Eq (WaitReason tx)

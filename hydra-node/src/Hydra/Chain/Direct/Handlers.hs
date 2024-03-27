@@ -50,6 +50,7 @@ import Hydra.Chain.Direct.State (
   collect,
   commit',
   contest,
+  decrement,
   fanout,
   getKnownUTxO,
   initialize,
@@ -62,6 +63,7 @@ import Hydra.Chain.Direct.Tx (
   CollectComObservation (..),
   CommitObservation (..),
   ContestObservation (..),
+  DecrementObservation (..),
   FanoutObservation (..),
   HeadObservation (..),
   InitObservation (..),
@@ -324,6 +326,8 @@ convertObservation = \case
     pure OnCommitTx{headId, party, committed}
   CollectCom CollectComObservation{headId} ->
     pure OnCollectComTx{headId}
+  Decrement DecrementObservation{headId} ->
+    pure OnDecrementTx{headId}
   Close CloseObservation{headId, snapshotNumber, threadOutput = ClosedThreadOutput{closedContestationDeadline}} ->
     pure
       OnCloseTx
@@ -372,6 +376,10 @@ prepareTxToPost timeHandle wallet ctx spendableUTxO tx =
       case collect ctx headId headParameters utxo spendableUTxO of
         Left _ -> throwIO (FailedToConstructCollectTx @Tx)
         Right collectTx -> pure collectTx
+    DecrementTx{headId, headParameters, snapshot, signatures} ->
+      case decrement ctx headId headParameters spendableUTxO snapshot signatures of
+        Left _ -> throwIO (FailedToConstructDecrementTx @Tx)
+        Right decrementTx' -> pure decrementTx'
     CloseTx{headId, headParameters, confirmedSnapshot} -> do
       (currentSlot, currentTime) <- throwLeft currentPointInTime
       let HeadParameters{contestationPeriod} = headParameters

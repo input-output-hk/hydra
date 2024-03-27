@@ -7,7 +7,7 @@ import Hydra.Prelude
 
 import Cardano.Crypto.Util (SignableRepresentation (..))
 import Codec.Serialise (serialise)
-import Data.Aeson (object, withObject, (.:), (.=))
+import Data.Aeson (object, withObject, (.:), (.:?), (.=))
 import Data.ByteString.Lazy qualified as LBS
 import Hydra.Cardano.Api (SigningKey)
 import Hydra.Cardano.Api.Prelude (serialiseToRawBytes)
@@ -33,6 +33,9 @@ data Snapshot tx = Snapshot
   , utxo :: UTxOType tx
   , confirmed :: [TxIdType tx]
   -- ^ The set of transactions that lead to 'utxo'
+  , utxoToDecommit :: Maybe (UTxOType tx)
+  -- ^ UTxO to be decommitted. Spec: Ûω
+  -- TODO: what is the difference between Noting and (Just mempty) here?
   }
   deriving stock (Generic)
 
@@ -40,13 +43,15 @@ deriving stock instance IsTx tx => Eq (Snapshot tx)
 deriving stock instance IsTx tx => Show (Snapshot tx)
 
 instance IsTx tx => ToJSON (Snapshot tx) where
-  toJSON Snapshot{headId, number, utxo, confirmed} =
+  toJSON Snapshot{headId, number, utxo, confirmed, utxoToDecommit} =
     object
-      [ "headId" .= headId
-      , "snapshotNumber" .= number
-      , "utxo" .= utxo
-      , "confirmedTransactions" .= confirmed
-      ]
+      ( [ "headId" .= headId
+        , "snapshotNumber" .= number
+        , "utxo" .= utxo
+        , "confirmedTransactions" .= confirmed
+        ]
+          <> maybe mempty (pure . ("utxoToDecommit" .=)) utxoToDecommit
+      )
 
 instance IsTx tx => FromJSON (Snapshot tx) where
   parseJSON = withObject "Snapshot" $ \obj ->
@@ -55,32 +60,48 @@ instance IsTx tx => FromJSON (Snapshot tx) where
       <*> (obj .: "snapshotNumber")
       <*> (obj .: "utxo")
       <*> (obj .: "confirmedTransactions")
+      <*> ( obj .:? "utxoToDecommit" >>= \case
+              Nothing -> pure mempty
+              (Just utxo) -> pure utxo
+          )
 
 instance IsTx tx => Arbitrary (Snapshot tx) where
   arbitrary = genericArbitrary
 
   -- NOTE: See note on 'Arbitrary (ClientInput tx)'
-  shrink Snapshot{headId, number, utxo, confirmed} =
-    [ Snapshot headId number utxo' confirmed'
+  shrink Snapshot{headId, number, utxo, confirmed, utxoToDecommit} =
+    [ Snapshot headId number utxo' confirmed' utxoToDecommit'
     | utxo' <- shrink utxo
     , confirmed' <- shrink confirmed
+    , utxoToDecommit' <- shrink utxoToDecommit
     ]
 
 -- | Binary representation of snapshot signatures
 -- TODO: document CDDL format, either here or on in 'Hydra.Contract.Head.verifyPartySignature'
 instance forall tx. IsTx tx => SignableRepresentation (Snapshot tx) where
-  getSignableRepresentation Snapshot{number, headId, utxo} =
+  getSignableRepresentation Snapshot{number, headId, utxo, utxoToDecommit} =
     LBS.toStrict $
       serialise (toData $ toBuiltin $ serialiseToRawBytes headId)
         <> serialise (toData $ toBuiltin $ toInteger number) -- CBOR(I(integer))
         <> serialise (toData $ toBuiltin $ hashUTxO @tx utxo) -- CBOR(B(bytestring)
+        <> serialise (toData . toBuiltin . hashUTxO @tx $ fromMaybe mempty utxoToDecommit) -- CBOR(B(bytestring)
 
 instance (Typeable tx, ToCBOR (UTxOType tx), ToCBOR (TxIdType tx)) => ToCBOR (Snapshot tx) where
-  toCBOR Snapshot{headId, number, utxo, confirmed} =
-    toCBOR headId <> toCBOR number <> toCBOR utxo <> toCBOR confirmed
+  toCBOR Snapshot{headId, number, utxo, confirmed, utxoToDecommit} =
+    toCBOR headId
+      <> toCBOR number
+      <> toCBOR utxo
+      <> toCBOR confirmed
+      <> toCBOR utxoToDecommit
 
 instance (Typeable tx, FromCBOR (UTxOType tx), FromCBOR (TxIdType tx)) => FromCBOR (Snapshot tx) where
-  fromCBOR = Snapshot <$> fromCBOR <*> fromCBOR <*> fromCBOR <*> fromCBOR
+  fromCBOR =
+    Snapshot
+      <$> fromCBOR
+      <*> fromCBOR
+      <*> fromCBOR
+      <*> fromCBOR
+      <*> fromCBOR
 
 -- | A snapshot that can be used to close a head with. Either the initial one, or when it was signed by all parties, i.e. it is confirmed.
 data ConfirmedSnapshot tx
@@ -102,7 +123,7 @@ data ConfirmedSnapshot tx
 -- happens.
 
 -- | Safely get a 'Snapshot' from a confirmed snapshot.
-getSnapshot :: ConfirmedSnapshot tx -> Snapshot tx
+getSnapshot :: Monoid (UTxOType tx) => ConfirmedSnapshot tx -> Snapshot tx
 getSnapshot = \case
   InitialSnapshot{headId, initialUTxO} ->
     Snapshot
@@ -110,6 +131,7 @@ getSnapshot = \case
       , number = 0
       , utxo = initialUTxO
       , confirmed = []
+      , utxoToDecommit = mempty
       }
   ConfirmedSnapshot{snapshot} -> snapshot
 
@@ -125,7 +147,8 @@ instance IsTx tx => Arbitrary (ConfirmedSnapshot tx) where
     ks <- arbitrary
     utxo <- arbitrary
     headId <- arbitrary
-    genConfirmedSnapshot headId 0 utxo ks
+    -- NOTE: arbitrary instance does not assume any decommits
+    genConfirmedSnapshot headId 0 utxo Nothing ks
 
   shrink = \case
     InitialSnapshot hid sn -> [InitialSnapshot hid sn' | sn' <- shrink sn]
@@ -140,9 +163,10 @@ genConfirmedSnapshot ::
   -- this lower bound.
   SnapshotNumber ->
   UTxOType tx ->
+  Maybe (UTxOType tx) ->
   [SigningKey HydraKey] ->
   Gen (ConfirmedSnapshot tx)
-genConfirmedSnapshot headId minSn utxo sks
+genConfirmedSnapshot headId minSn utxo utxoToDecommit sks
   | minSn > 0 = confirmedSnapshot
   | otherwise =
       frequency
@@ -157,7 +181,7 @@ genConfirmedSnapshot headId minSn utxo sks
     -- FIXME: This is another nail in the coffin to our current modeling of
     -- snapshots
     number <- arbitrary `suchThat` (> minSn)
-    let snapshot = Snapshot{headId, number, utxo, confirmed = []}
+    let snapshot = Snapshot{headId, number, utxo, confirmed = [], utxoToDecommit}
     let signatures = aggregate $ fmap (`sign` snapshot) sks
     pure $ ConfirmedSnapshot{snapshot, signatures}
 

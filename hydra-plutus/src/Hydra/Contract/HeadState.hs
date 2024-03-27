@@ -30,12 +30,17 @@ data State
       { contestationPeriod :: ContestationPeriod
       , parties :: [Party]
       , utxoHash :: Hash
+      -- ^ Spec: η
       , headId :: CurrencySymbol
+      , snapshotNumber :: SnapshotNumber
       }
   | Closed
       { parties :: [Party]
       , snapshotNumber :: SnapshotNumber
       , utxoHash :: Hash
+      -- ^ Spec: η
+      , utxoToDecommitHash :: Hash
+      -- ^ Spec: ηω
       , contestationDeadline :: POSIXTime
       , contestationPeriod :: ContestationPeriod
       , headId :: CurrencySymbol
@@ -48,6 +53,10 @@ PlutusTx.unstableMakeIsData ''State
 
 data Input
   = CollectCom
+  | Decrement
+      { signature :: [Signature]
+      , numberOfDecommitOutputs :: Integer
+      }
   | Close
       { signature :: [Signature]
       }
