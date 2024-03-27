@@ -12,7 +12,9 @@ import Hydra.Prelude hiding (label)
 import Test.Hydra.Prelude
 
 import Cardano.Api.UTxO qualified as UTxO
+import Cardano.Ledger.Api (auxDataTxL, bodyTxL, inputsTxBodyL, isValidTxL, mintTxBodyL, outputsTxBodyL, referenceInputsTxBodyL, reqSignerHashesTxBodyL, witsTxL)
 import Cardano.Ledger.Core (EraTx (getMinFeeTx))
+import Control.Lens ((^.))
 import Data.Map qualified as Map
 import Data.Text qualified as T
 import Hydra.Cardano.Api.Pretty (renderTx)
@@ -36,6 +38,7 @@ import Hydra.Contract.Initial qualified as Initial
 import Hydra.Ledger.Cardano (adaOnly, genOneUTxOFor, genVerificationKey)
 import Hydra.Ledger.Cardano.Evaluate (EvaluationReport, maxTxExecutionUnits)
 import Hydra.Party (Party)
+import Test.Hydra.Fixture (testHeadId)
 import Test.QuickCheck (
   Property,
   choose,
@@ -45,9 +48,12 @@ import Test.QuickCheck (
   forAllBlind,
   label,
   property,
+  suchThat,
   vectorOf,
   withMaxSuccess,
-  (===),
+  (.&&.),
+  (=/=),
+  (===), coverTable,
  )
 import Test.QuickCheck.Instances.Semigroup ()
 import Test.QuickCheck.Monadic (monadicIO)
@@ -140,6 +146,29 @@ spec =
                         & counterexample "Failed to construct and observe init tx."
                         & counterexample (renderTx tx)
                         & counterexample (show e)
+    describe "commitTx" $ do
+      prop "Appends needed commit changes to blueprintTx" $ \blueprintTx' ->
+        forAll genScriptRegistry $ \scriptRegistry ->
+          forAll arbitrary $ \party ->
+            forAll (genAbortableOutputs [party] `suchThat` (\(a, _) -> not (null a))) $ \(initials, commits) ->
+              forAll arbitrary $ \vkh -> do
+                initialInputAndOutput <- elements initials
+                let utxoToCommit = foldMap third commits
+                let tx' = commitTx testNetworkId scriptRegistry testHeadId party utxoToCommit blueprintTx' (fst initialInputAndOutput, snd initialInputAndOutput, vkh)
+                let blueprintTx = toLedgerTx blueprintTx'
+                let blueprintBody = blueprintTx ^. bodyTxL
+                let tx = toLedgerTx tx'
+                let commitTxBody = tx ^. bodyTxL
+                -- TODO: assert all untouched tx fields are equal
+                pure $
+                  (blueprintTx ^. witsTxL === tx ^. witsTxL)
+                    .&&. (blueprintTx ^. isValidTxL === tx ^. isValidTxL)
+                    .&&. (blueprintTx ^. auxDataTxL === tx ^. auxDataTxL)
+                    .&&. property (length (blueprintBody ^. inputsTxBodyL) <= length (commitTxBody ^. inputsTxBodyL))
+                    .&&. property (length (blueprintBody ^. outputsTxBodyL) <= length (commitTxBody ^. outputsTxBodyL))
+                    .&&. property (length (blueprintBody ^. referenceInputsTxBodyL) <= length (commitTxBody ^. referenceInputsTxBodyL))
+                    .&&. property (length (blueprintBody ^. reqSignerHashesTxBodyL) <= length (commitTxBody ^. reqSignerHashesTxBodyL))
+
 
 withinTxExecutionBudget :: EvaluationReport -> Property
 withinTxExecutionBudget report =
