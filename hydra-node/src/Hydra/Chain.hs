@@ -19,13 +19,8 @@ import Hydra.Cardano.Api (
   Address,
   ByronAddr,
   Coin (..),
-  CtxUTxO,
   Tx,
-  TxOut,
   UTxO,
-  UTxO',
-  WitCtxTxIn,
-  Witness,
  )
 import Hydra.ContestationPeriod (ContestationPeriod)
 import Hydra.Environment (Environment (..))
@@ -252,7 +247,7 @@ data Chain tx m = Chain
       Tx ->
       m (Either (PostTxError Tx) Tx)
   -- ^ Create a commit transaction using user provided utxos (zero or many) and
-  -- information to spend from a script. Errors are handled at the call site.
+  -- a _blueprint_ transaction. Errors are handled at the call site.
   , submitTx :: MonadThrow m => Tx -> m ()
   -- ^ Submit a cardano transaction.
   --

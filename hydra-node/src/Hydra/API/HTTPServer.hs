@@ -5,34 +5,19 @@ module Hydra.API.HTTPServer where
 import Hydra.Prelude
 
 import Cardano.Api.UTxO qualified as UTxO
+import Cardano.Ledger.Api (TxDats (TxDats), datsTxWitsL, hashData, hashScriptTxWitsL, mkBasicTx, mkBasicTxBody, mkBasicTxWits, outputsTxBodyL, rdmrsTxWitsL, witsTxL, pattern TxDats)
 import Cardano.Ledger.Core (PParams)
+import Control.Lens ((.~), (^.))
 import Data.Aeson (KeyValue ((.=)), Value (Object), object, withObject, (.:), (.:?))
 import Data.Aeson qualified as Aeson
 import Data.Aeson.KeyMap qualified as KeyMap
 import Data.ByteString.Lazy qualified as LBS
 import Data.ByteString.Short ()
+import Data.Map.Strict qualified as Map
+import Data.Sequence.Strict qualified as StrictSeq
 import Data.Text (pack)
 import Hydra.API.APIServerLog (APIServerLog (..), Method (..), PathInfo (..))
-import Hydra.Cardano.Api (
-  CtxUTxO,
-  HashableScriptData,
-  KeyWitnessInCtx (..),
-  LedgerEra,
-  PlutusScript,
-  ScriptDatum (InlineScriptDatum, ScriptDatumForTxIn),
-  ScriptWitnessInCtx (ScriptWitnessForSpending),
-  Tx,
-  TxOut,
-  UTxO',
-  deserialiseFromTextEnvelope,
-  fromLedgerPParams,
-  mkScriptWitness,
-  proxyToAsType,
-  serialiseToTextEnvelope,
-  shelleyBasedEra,
-  pattern KeyWitness,
-  pattern ScriptWitness,
- )
+import Hydra.Cardano.Api (CtxUTxO, HashableScriptData, LedgerEra, PlutusScript, Tx, TxOut, UTxO', deserialiseFromTextEnvelope, fromLedgerPParams, fromLedgerTx, proxyToAsType, serialiseToTextEnvelope, shelleyBasedEra, toLedgerData, toLedgerScript, toLedgerTxOut)
 import Hydra.Chain (Chain (..), IsChainState, PostTxError (..), draftCommitTx)
 import Hydra.Chain.Direct.State ()
 import Hydra.HeadId (HeadId)
@@ -270,45 +255,66 @@ handleDraftCommitUtxo directChain getInitializingHeadId body = do
     Left err ->
       pure $ responseLBS status400 [] (Aeson.encode $ Aeson.String $ pack err)
     Right FullCommitRequest{blueprintTx} -> do
-      pure undefined
+      atomically getInitializingHeadId >>= \case
+        Just headId -> do
+          let utxo = undefined
+          draftCommit headId utxo blueprintTx
+        Nothing -> pure $ responseLBS status500 [] (Aeson.encode $ FailedToDraftTxNotInitializing @Tx)
     Right SimpleCommitRequest{utxoToCommit} -> do
       atomically getInitializingHeadId >>= \case
         Just headId -> do
-          -- TODO: revisit
-          let blueprintTx = undefined
+          let blueprintTx = mkBlueprintTx utxoToCommit
           let utxo = undefined -- (fromTxOutWithWitness <$> utxoToCommit)
-          draftCommitTx headId undefined blueprintTx <&> \case
-            Left e ->
-              -- Distinguish between errors users can actually benefit from and
-              -- other errors that are turned into 500 responses.
-              case e of
-                CannotCommitReferenceScript -> return400 e
-                CommittedTooMuchADAForMainnet _ _ -> return400 e
-                UnsupportedLegacyOutput _ -> return400 e
-                walletUtxoErr@SpendingNodeUtxoForbidden -> return400 walletUtxoErr
-                _ -> responseLBS status500 [] (Aeson.encode $ toJSON e)
-            Right commitTx ->
-              responseLBS status200 [] (Aeson.encode $ DraftCommitTxResponse commitTx)
+          draftCommit headId utxo blueprintTx
         -- XXX: This is not really an internal server error
         Nothing -> pure $ responseLBS status500 [] (Aeson.encode $ FailedToDraftTxNotInitializing @Tx)
  where
+  draftCommit headId utxo blueprintTx =
+    draftCommitTx headId utxo blueprintTx <&> \case
+      Left e ->
+        -- Distinguish between errors users can actually benefit from and
+        -- other errors that are turned into 500 responses.
+        case e of
+          CannotCommitReferenceScript -> return400 e
+          CommittedTooMuchADAForMainnet _ _ -> return400 e
+          UnsupportedLegacyOutput _ -> return400 e
+          walletUtxoErr@SpendingNodeUtxoForbidden -> return400 walletUtxoErr
+          _ -> responseLBS status500 [] (Aeson.encode $ toJSON e)
+      Right commitTx ->
+        responseLBS status200 [] (Aeson.encode $ DraftCommitTxResponse commitTx)
   Chain{draftCommitTx} = directChain
 
-  fromTxOutWithWitness TxOutWithWitness{txOut, witness} =
-    (txOut, toScriptWitness witness)
+  mkBlueprintTx :: UTxO' TxOutWithWitness -> Tx
+  mkBlueprintTx utxoWithWitnesses =
+    let utxoWithWitneses' = Map.elems $ UTxO.toMap utxoWithWitnesses
+        tx = mkBasicTx (foldl' addOutputsToBody mkBasicTxBody utxoWithWitneses')
+     in fromLedgerTx $ addWitnessesToTx tx utxoWithWitneses'
    where
-    toScriptWitness = \case
-      Nothing ->
-        KeyWitness KeyWitnessForSpending
-      Just ScriptInfo{redeemer, datum, plutusV2Script} ->
-        ScriptWitness ScriptWitnessForSpending $
-          case datum of
-            Nothing ->
-              -- In case the datum field is not present we are assumming the datum
-              -- is inlined.
-              mkScriptWitness plutusV2Script InlineScriptDatum redeemer
-            Just d ->
-              mkScriptWitness plutusV2Script (ScriptDatumForTxIn d) redeemer
+    addWitnessesToTx tx =
+      \case
+        [] -> tx
+        (TxOutWithWitness{witness} : rest) ->
+          case witness of
+            Nothing -> addWitnessesToTx tx rest
+            Just ScriptInfo{datum, plutusV2Script} ->
+              let -- TxDats existingDatum = tx ^. datsTxWitsL
+                  -- txDats =
+                  --   case datum of
+                  --     Nothing -> TxDats existingDatum
+                  --     Just dat ->
+                  --       TxDats $ Map.insert (hashData $ toLedgerData dat) (toLedgerData dat) existingDatum
+                  wits =
+                    mkBasicTxWits
+                      & hashScriptTxWitsL .~ [toLedgerScript plutusV2Script]
+                  tx' =
+                    tx
+                      -- & datsTxWitsL .~ txDats
+                      & witsTxL .~ wits
+               in addWitnessesToTx tx' rest
+    -- & rdmrsTxWitsL .~ undefined redeemer
+
+    addOutputsToBody txbody TxOutWithWitness{txOut} =
+      txbody & outputsTxBodyL .~ StrictSeq.singleton (toLedgerTxOut txOut)
 
 -- | Handle request to submit a cardano transaction.
 handleSubmitUserTx ::
