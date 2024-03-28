@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkhydra_head_protocol_docs=self.webpackChunkhydra_head_protocol_docs||[]).push([[4207],{22996:a=>{a.exports=JSON.parse('{"label":"Accepted","permalink":"/head-protocol/fr/adr/tags/accepted","allTagsPath":"/head-protocol/fr/adr/tags","count":20}')}}]);

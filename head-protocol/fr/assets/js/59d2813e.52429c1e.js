@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkhydra_head_protocol_docs=self.webpackChunkhydra_head_protocol_docs||[]).push([[1546],{41714:o=>{o.exports=JSON.parse('{"permalink":"/head-protocol/fr/monthly/tags/monthly","page":1,"postsPerPage":10,"totalPages":2,"totalCount":13,"nextPage":"/head-protocol/fr/monthly/tags/monthly/page/2","blogDescription":"Blog","blogTitle":"Blog"}')}}]);

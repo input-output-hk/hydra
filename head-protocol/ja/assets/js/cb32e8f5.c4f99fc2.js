@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkhydra_head_protocol_docs=self.webpackChunkhydra_head_protocol_docs||[]).push([[2776],{93563:a=>{a.exports=JSON.parse('{"label":"Superseded","permalink":"/head-protocol/ja/adr/tags/superseded","allTagsPath":"/head-protocol/ja/adr/tags","count":1}')}}]);

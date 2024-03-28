@@ -1,0 +1,159 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="annot"><span class="hs-comment">-- | Test and example values used across hydra-node tests.</span></span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Test.Hydra.Fixture</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Prelude</span></span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Cardano.Api</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Key</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">SerialiseAsRawBytes</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">SigningKey</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">VerificationKey</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">getVerificationKey</span></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.ContestationPeriod</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ContestationPeriod</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Crypto</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">HydraKey</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">generateSigningKey</span></span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Environment</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Environment</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.HeadId</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">HeadId</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">HeadSeed</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.OnChainId</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">AsType</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">AsOnChainId</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">OnChainId</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Party</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Party</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">deriveParty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="annot"><a href="Test.Hydra.Fixture.html#alice"><span class="hs-identifier hs-type">alice</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hydra.Fixture.html#bob"><span class="hs-identifier hs-type">bob</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hydra.Fixture.html#carol"><span class="hs-identifier hs-type">carol</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Party</span></span><span>
+</span><span id="line-15"></span><span id="alice"><span class="annot"><span class="annottext">alice :: Party
+</span><a href="Test.Hydra.Fixture.html#alice"><span class="hs-identifier hs-var hs-var">alice</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SigningKey HydraKey -&gt; Party
+</span><span class="hs-identifier hs-var">deriveParty</span></span><span> </span><span class="annot"><span class="annottext">SigningKey HydraKey
+</span><a href="Test.Hydra.Fixture.html#aliceSk"><span class="hs-identifier hs-var">aliceSk</span></a></span><span>
+</span><span id="line-16"></span><span id="bob"><span class="annot"><span class="annottext">bob :: Party
+</span><a href="Test.Hydra.Fixture.html#bob"><span class="hs-identifier hs-var hs-var">bob</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SigningKey HydraKey -&gt; Party
+</span><span class="hs-identifier hs-var">deriveParty</span></span><span> </span><span class="annot"><span class="annottext">SigningKey HydraKey
+</span><a href="Test.Hydra.Fixture.html#bobSk"><span class="hs-identifier hs-var">bobSk</span></a></span><span>
+</span><span id="line-17"></span><span id="carol"><span class="annot"><span class="annottext">carol :: Party
+</span><a href="Test.Hydra.Fixture.html#carol"><span class="hs-identifier hs-var hs-var">carol</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SigningKey HydraKey -&gt; Party
+</span><span class="hs-identifier hs-var">deriveParty</span></span><span> </span><span class="annot"><span class="annottext">SigningKey HydraKey
+</span><a href="Test.Hydra.Fixture.html#carolSk"><span class="hs-identifier hs-var">carolSk</span></a></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="annot"><a href="Test.Hydra.Fixture.html#aliceSk"><span class="hs-identifier hs-type">aliceSk</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hydra.Fixture.html#bobSk"><span class="hs-identifier hs-type">bobSk</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hydra.Fixture.html#carolSk"><span class="hs-identifier hs-type">carolSk</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">SigningKey</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">HydraKey</span></span><span>
+</span><span id="line-20"></span><span id="aliceSk"><span class="annot"><span class="annottext">aliceSk :: SigningKey HydraKey
+</span><a href="Test.Hydra.Fixture.html#aliceSk"><span class="hs-identifier hs-var hs-var">aliceSk</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; SigningKey HydraKey
+</span><span class="hs-identifier hs-var">generateSigningKey</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;alice&quot;</span></span><span>
+</span><span id="line-21"></span><span id="bobSk"><span class="annot"><span class="annottext">bobSk :: SigningKey HydraKey
+</span><a href="Test.Hydra.Fixture.html#bobSk"><span class="hs-identifier hs-var hs-var">bobSk</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; SigningKey HydraKey
+</span><span class="hs-identifier hs-var">generateSigningKey</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;bob&quot;</span></span><span>
+</span><span id="line-22"></span><span id="carolSk"><span class="annot"><span class="annottext">carolSk :: SigningKey HydraKey
+</span><a href="Test.Hydra.Fixture.html#carolSk"><span class="hs-identifier hs-var hs-var">carolSk</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; SigningKey HydraKey
+</span><span class="hs-identifier hs-var">generateSigningKey</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;zcarol&quot;</span></span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="annot"><a href="Test.Hydra.Fixture.html#aliceVk"><span class="hs-identifier hs-type">aliceVk</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hydra.Fixture.html#bobVk"><span class="hs-identifier hs-type">bobVk</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hydra.Fixture.html#carolVk"><span class="hs-identifier hs-type">carolVk</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">VerificationKey</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">HydraKey</span></span><span>
+</span><span id="line-25"></span><span id="aliceVk"><span class="annot"><span class="annottext">aliceVk :: VerificationKey HydraKey
+</span><a href="Test.Hydra.Fixture.html#aliceVk"><span class="hs-identifier hs-var hs-var">aliceVk</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SigningKey HydraKey -&gt; VerificationKey HydraKey
+forall keyrole.
+(Key keyrole, HasTypeProxy keyrole) =&gt;
+SigningKey keyrole -&gt; VerificationKey keyrole
+</span><span class="hs-identifier hs-var">getVerificationKey</span></span><span> </span><span class="annot"><span class="annottext">SigningKey HydraKey
+</span><a href="Test.Hydra.Fixture.html#aliceSk"><span class="hs-identifier hs-var">aliceSk</span></a></span><span>
+</span><span id="line-26"></span><span id="bobVk"><span class="annot"><span class="annottext">bobVk :: VerificationKey HydraKey
+</span><a href="Test.Hydra.Fixture.html#bobVk"><span class="hs-identifier hs-var hs-var">bobVk</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SigningKey HydraKey -&gt; VerificationKey HydraKey
+forall keyrole.
+(Key keyrole, HasTypeProxy keyrole) =&gt;
+SigningKey keyrole -&gt; VerificationKey keyrole
+</span><span class="hs-identifier hs-var">getVerificationKey</span></span><span> </span><span class="annot"><span class="annottext">SigningKey HydraKey
+</span><a href="Test.Hydra.Fixture.html#bobSk"><span class="hs-identifier hs-var">bobSk</span></a></span><span>
+</span><span id="line-27"></span><span id="carolVk"><span class="annot"><span class="annottext">carolVk :: VerificationKey HydraKey
+</span><a href="Test.Hydra.Fixture.html#carolVk"><span class="hs-identifier hs-var hs-var">carolVk</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SigningKey HydraKey -&gt; VerificationKey HydraKey
+forall keyrole.
+(Key keyrole, HasTypeProxy keyrole) =&gt;
+SigningKey keyrole -&gt; VerificationKey keyrole
+</span><span class="hs-identifier hs-var">getVerificationKey</span></span><span> </span><span class="annot"><span class="annottext">SigningKey HydraKey
+</span><a href="Test.Hydra.Fixture.html#carolSk"><span class="hs-identifier hs-var">carolSk</span></a></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="annot"><a href="Test.Hydra.Fixture.html#allVKeys"><span class="hs-identifier hs-type">allVKeys</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">VerificationKey</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">HydraKey</span></span><span class="hs-special">]</span><span>
+</span><span id="line-30"></span><span id="allVKeys"><span class="annot"><span class="annottext">allVKeys :: [VerificationKey HydraKey]
+</span><a href="Test.Hydra.Fixture.html#allVKeys"><span class="hs-identifier hs-var hs-var">allVKeys</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Party -&gt; VerificationKey HydraKey
+</span><span class="hs-identifier hs-var">vkey</span></span><span> </span><span class="annot"><span class="annottext">(Party -&gt; VerificationKey HydraKey)
+-&gt; [Party] -&gt; [VerificationKey HydraKey]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/Data.Functor.html#%3C%24%3E"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Party
+</span><a href="Test.Hydra.Fixture.html#alice"><span class="hs-identifier hs-var">alice</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Party
+</span><a href="Test.Hydra.Fixture.html#bob"><span class="hs-identifier hs-var">bob</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Party
+</span><a href="Test.Hydra.Fixture.html#carol"><span class="hs-identifier hs-var">carol</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="annot"><a href="Test.Hydra.Fixture.html#cperiod"><span class="hs-identifier hs-type">cperiod</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ContestationPeriod</span></span><span>
+</span><span id="line-33"></span><span id="cperiod"><span class="annot"><span class="annottext">cperiod :: ContestationPeriod
+</span><a href="Test.Hydra.Fixture.html#cperiod"><span class="hs-identifier hs-var hs-var">cperiod</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Natural -&gt; ContestationPeriod
+</span><span class="hs-identifier hs-var">UnsafeContestationPeriod</span></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><span class="hs-number">42</span></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="annot"><a href="Test.Hydra.Fixture.html#testHeadId"><span class="hs-identifier hs-type">testHeadId</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">HeadId</span></span><span>
+</span><span id="line-36"></span><span id="testHeadId"><span class="annot"><span class="annottext">testHeadId :: HeadId
+</span><a href="Test.Hydra.Fixture.html#testHeadId"><span class="hs-identifier hs-var hs-var">testHeadId</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; HeadId
+</span><span class="hs-identifier hs-var">UnsafeHeadId</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;1234&quot;</span></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="annot"><a href="Test.Hydra.Fixture.html#testHeadSeed"><span class="hs-identifier hs-type">testHeadSeed</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">HeadSeed</span></span><span>
+</span><span id="line-39"></span><span id="testHeadSeed"><span class="annot"><span class="annottext">testHeadSeed :: HeadSeed
+</span><a href="Test.Hydra.Fixture.html#testHeadSeed"><span class="hs-identifier hs-var hs-var">testHeadSeed</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; HeadSeed
+</span><span class="hs-identifier hs-var">UnsafeHeadSeed</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;000000000000000000#0&quot;</span></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- | Derive some 'OnChainId' from a Hydra party. In the real protocol this is</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- currently not done, but in this simulated chain setting this is definitely</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- fine.</span><span>
+</span><span id="line-44"></span><span class="annot"><a href="Test.Hydra.Fixture.html#deriveOnChainId"><span class="hs-identifier hs-type">deriveOnChainId</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Party</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">OnChainId</span></span><span>
+</span><span id="line-45"></span><span id="deriveOnChainId"><span class="annot"><span class="annottext">deriveOnChainId :: Party -&gt; OnChainId
+</span><a href="Test.Hydra.Fixture.html#deriveOnChainId"><span class="hs-identifier hs-var hs-var">deriveOnChainId</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Party</span></span><span class="hs-special">{</span><span id="local-6989586621679513834"><span class="annot"><span class="annottext">VerificationKey HydraKey
+$sel:vkey:Party :: Party -&gt; VerificationKey HydraKey
+vkey :: VerificationKey HydraKey
+</span><span class="hs-identifier hs-var hs-var">vkey</span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">AsType OnChainId
+-&gt; ByteString -&gt; Either SerialiseAsRawBytesError OnChainId
+forall a.
+SerialiseAsRawBytes a =&gt;
+AsType a -&gt; ByteString -&gt; Either SerialiseAsRawBytesError a
+</span><span class="hs-identifier hs-var">deserialiseFromRawBytes</span></span><span> </span><span class="annot"><span class="annottext">AsType OnChainId
+</span><span class="hs-identifier hs-var">AsOnChainId</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679513836"><span class="hs-identifier hs-var">bytes</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-47"></span><span>    </span><span class="annot"><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/Data.Either.html#Left"><span class="hs-identifier hs-type">Left</span></a></span><span> </span><span class="annot"><span class="annottext">SerialiseAsRawBytesError
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; OnChainId
+forall a t. (HasCallStack, IsText t) =&gt; t -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;deriveOnChainId failed&quot;</span></span><span>
+</span><span id="line-48"></span><span>    </span><span class="annot"><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/Data.Either.html#Right"><span class="hs-identifier hs-type">Right</span></a></span><span> </span><span id="local-6989586621679513838"><span class="annot"><span class="annottext">OnChainId
+</span><a href="#local-6989586621679513838"><span class="hs-identifier hs-var">oid</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">OnChainId
+</span><a href="#local-6989586621679513838"><span class="hs-identifier hs-var">oid</span></a></span><span>
+</span><span id="line-49"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-50"></span><span>  </span><span id="local-6989586621679513836"><span class="annot"><span class="annottext">bytes :: ByteString
+</span><a href="#local-6989586621679513836"><span class="hs-identifier hs-var hs-var">bytes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Hash HydraKey -&gt; ByteString
+forall a. SerialiseAsRawBytes a =&gt; a -&gt; ByteString
+</span><span class="hs-identifier hs-var">serialiseToRawBytes</span></span><span> </span><span class="annot"><span class="annottext">(Hash HydraKey -&gt; ByteString) -&gt; Hash HydraKey -&gt; ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">VerificationKey HydraKey -&gt; Hash HydraKey
+forall keyrole.
+Key keyrole =&gt;
+VerificationKey keyrole -&gt; Hash keyrole
+</span><span class="hs-identifier hs-var">verificationKeyHash</span></span><span> </span><span class="annot"><span class="annottext">VerificationKey HydraKey
+</span><a href="#local-6989586621679513834"><span class="hs-identifier hs-var">vkey</span></a></span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="annot"><span class="hs-comment">-- | An environment fixture for testing.</span></span><span>
+</span><span id="line-53"></span><span class="annot"><a href="Test.Hydra.Fixture.html#testEnvironment"><span class="hs-identifier hs-type">testEnvironment</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Environment</span></span><span>
+</span><span id="line-54"></span><span id="testEnvironment"><span class="annot"><span class="annottext">testEnvironment :: Environment
+</span><a href="Test.Hydra.Fixture.html#testEnvironment"><span class="hs-identifier hs-var hs-var">testEnvironment</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-55"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Environment</span></span><span>
+</span><span id="line-56"></span><span>    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">$sel:party:Environment :: Party
+</span><span class="hs-identifier hs-var">party</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Party
+</span><a href="Test.Hydra.Fixture.html#alice"><span class="hs-identifier hs-var">alice</span></a></span><span>
+</span><span id="line-57"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:signingKey:Environment :: SigningKey HydraKey
+</span><span class="hs-identifier hs-var">signingKey</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SigningKey HydraKey
+</span><a href="Test.Hydra.Fixture.html#aliceSk"><span class="hs-identifier hs-var">aliceSk</span></a></span><span>
+</span><span id="line-58"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:otherParties:Environment :: [Party]
+</span><span class="hs-identifier hs-var">otherParties</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Party
+</span><a href="Test.Hydra.Fixture.html#bob"><span class="hs-identifier hs-var">bob</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Party
+</span><a href="Test.Hydra.Fixture.html#carol"><span class="hs-identifier hs-var">carol</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-59"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:contestationPeriod:Environment :: ContestationPeriod
+</span><span class="hs-identifier hs-var">contestationPeriod</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ContestationPeriod
+</span><a href="Test.Hydra.Fixture.html#cperiod"><span class="hs-identifier hs-var">cperiod</span></a></span><span>
+</span><span id="line-60"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:participants:Environment :: [OnChainId]
+</span><span class="hs-identifier hs-var">participants</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Party -&gt; OnChainId
+</span><a href="Test.Hydra.Fixture.html#deriveOnChainId"><span class="hs-identifier hs-var">deriveOnChainId</span></a></span><span> </span><span class="annot"><span class="annottext">(Party -&gt; OnChainId) -&gt; [Party] -&gt; [OnChainId]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/Data.Functor.html#%3C%24%3E"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Party
+</span><a href="Test.Hydra.Fixture.html#alice"><span class="hs-identifier hs-var">alice</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Party
+</span><a href="Test.Hydra.Fixture.html#bob"><span class="hs-identifier hs-var">bob</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Party
+</span><a href="Test.Hydra.Fixture.html#carol"><span class="hs-identifier hs-var">carol</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-61"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-62"></span></pre></body></html>

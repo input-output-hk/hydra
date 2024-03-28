@@ -1,0 +1,143 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="annot"><span class="hs-comment">-- | Generators used in mutation testing framework</span></span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Hydra.Chain.Direct.Contract.Gen</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Cardano.Crypto.Hash</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">hashToBytes</span></span><span class="hs-special">)</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Codec.CBOR.Magic</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">uintegerFromBytes</span></span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/bytestring-0.11.5.2/src/Data.ByteString.html"><span class="hs-identifier">Data.ByteString</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BS</span></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Cardano.Api</span></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Chain.Direct.Fixture</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Fixtures</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Contract.HeadTokens</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">headPolicyId</span></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Contract.Util</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">hydraHeadV1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Crypto</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Hash</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">HydraKeyHash</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Party</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Party</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Prelude</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">PlutusTx.Builtins</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">fromBuiltin</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Test.QuickCheck</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">oneof</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">suchThat</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">vector</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="annot"><span class="hs-comment">-- * Party / key utilities</span></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- | Generate some 'a' given the Party as a seed. NOTE: While this is useful to</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- generate party-specific values, it DOES depend on the generator used. For</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- example, `genForParty genVerificationKey` and `genForParty (fst &lt;$&gt;</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- genKeyPair)` do not yield the same verification keys!</span><span>
+</span><span id="line-23"></span><span id="local-6989586621679483352"><span class="annot"><a href="Hydra.Chain.Direct.Contract.Gen.html#genForParty"><span class="hs-identifier hs-type">genForParty</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Gen</span></span><span> </span><span class="annot"><a href="#local-6989586621679483352"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Party</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679483352"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-24"></span><span id="genForParty"><span class="annot"><span class="annottext">genForParty :: forall a. Gen a -&gt; Party -&gt; a
+</span><a href="Hydra.Chain.Direct.Contract.Gen.html#genForParty"><span class="hs-identifier hs-var hs-var">genForParty</span></a></span></span><span> </span><span id="local-6989586621679483433"><span class="annot"><span class="annottext">Gen a
+</span><a href="#local-6989586621679483433"><span class="hs-identifier hs-var">gen</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Party</span></span><span class="hs-special">{</span><span id="local-6989586621679483435"><span class="annot"><span class="annottext">VerificationKey HydraKey
+vkey :: VerificationKey HydraKey
+$sel:vkey:Party :: Party -&gt; VerificationKey HydraKey
+</span><a href="#local-6989586621679483435"><span class="hs-identifier hs-var hs-var">vkey</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-25"></span><span>  </span><span class="annot"><span class="annottext">Gen a -&gt; Int -&gt; a
+forall a. Gen a -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">generateWith</span></span><span> </span><span class="annot"><span class="annottext">Gen a
+</span><a href="#local-6989586621679483433"><span class="hs-identifier hs-var">gen</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679483438"><span class="hs-identifier hs-var">seed</span></a></span><span>
+</span><span id="line-26"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-27"></span><span>  </span><span id="local-6989586621679483438"><span class="annot"><span class="annottext">seed :: Int
+</span><a href="#local-6989586621679483438"><span class="hs-identifier hs-var hs-var">seed</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-28"></span><span>    </span><span class="annot"><span class="annottext">Integer -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Real.html#fromIntegral"><span class="hs-identifier hs-var">fromIntegral</span></a></span><span>
+</span><span id="line-29"></span><span>      </span><span class="annot"><span class="annottext">(Integer -&gt; Int)
+-&gt; (Hash HydraKey -&gt; Integer) -&gt; Hash HydraKey -&gt; Int
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Integer
+</span><span class="hs-identifier hs-var">uintegerFromBytes</span></span><span>
+</span><span id="line-30"></span><span>      </span><span class="annot"><span class="annottext">(ByteString -&gt; Integer)
+-&gt; (Hash HydraKey -&gt; ByteString) -&gt; Hash HydraKey -&gt; Integer
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">Hash HydraKey -&gt; ByteString
+</span><a href="#local-6989586621679483440"><span class="hs-identifier hs-var">hydraKeyHashToBytes</span></a></span><span>
+</span><span id="line-31"></span><span>      </span><span class="annot"><span class="annottext">(Hash HydraKey -&gt; Int) -&gt; Hash HydraKey -&gt; Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">VerificationKey HydraKey -&gt; Hash HydraKey
+forall keyrole.
+Key keyrole =&gt;
+VerificationKey keyrole -&gt; Hash keyrole
+</span><span class="hs-identifier hs-var">verificationKeyHash</span></span><span> </span><span class="annot"><span class="annottext">VerificationKey HydraKey
+</span><a href="#local-6989586621679483435"><span class="hs-identifier hs-var">vkey</span></a></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span>  </span><span id="local-6989586621679483440"><span class="annot"><span class="annottext">hydraKeyHashToBytes :: Hash HydraKey -&gt; ByteString
+</span><a href="#local-6989586621679483440"><span class="hs-identifier hs-var hs-var">hydraKeyHashToBytes</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HydraKeyHash</span></span><span> </span><span id="local-6989586621679483442"><span class="annot"><span class="annottext">Hash Blake2b_256 (VerificationKey HydraKey)
+</span><a href="#local-6989586621679483442"><span class="hs-identifier hs-var">h</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Hash Blake2b_256 (VerificationKey HydraKey) -&gt; ByteString
+forall h a. Hash h a -&gt; ByteString
+</span><span class="hs-identifier hs-var">hashToBytes</span></span><span> </span><span class="annot"><span class="annottext">Hash Blake2b_256 (VerificationKey HydraKey)
+</span><a href="#local-6989586621679483442"><span class="hs-identifier hs-var">h</span></a></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="annot"><a href="Hydra.Chain.Direct.Contract.Gen.html#genBytes"><span class="hs-identifier hs-type">genBytes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Gen</span></span><span> </span><span class="annot"><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/bytestring-0.11.5.2/src/Data.ByteString.Internal.Type.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span>
+</span><span id="line-36"></span><span id="genBytes"><span class="annot"><span class="annottext">genBytes :: Gen ByteString
+</span><a href="Hydra.Chain.Direct.Contract.Gen.html#genBytes"><span class="hs-identifier hs-var hs-var">genBytes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Gen ByteString
+forall a. Arbitrary a =&gt; Gen a
+</span><span class="hs-identifier hs-var">arbitrary</span></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="annot"><a href="Hydra.Chain.Direct.Contract.Gen.html#genHash"><span class="hs-identifier hs-type">genHash</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Gen</span></span><span> </span><span class="annot"><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/bytestring-0.11.5.2/src/Data.ByteString.Internal.Type.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span>
+</span><span id="line-39"></span><span id="genHash"><span class="annot"><span class="annottext">genHash :: Gen ByteString
+</span><a href="Hydra.Chain.Direct.Contract.Gen.html#genHash"><span class="hs-identifier hs-var hs-var">genHash</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Word8] -&gt; ByteString
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/bytestring-0.11.5.2/src/Data.ByteString.html#pack"><span class="hs-identifier hs-var">BS.pack</span></a></span><span> </span><span class="annot"><span class="annottext">([Word8] -&gt; ByteString) -&gt; Gen [Word8] -&gt; Gen ByteString
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/Data.Functor.html#%3C%24%3E"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Gen [Word8]
+forall a. Arbitrary a =&gt; Int -&gt; Gen [a]
+</span><span class="hs-identifier hs-var">vector</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">32</span></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- | Generates value such that:</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- - alters between policy id we use in test fixtures with a random one.</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- - mixing arbitrary token names with 'hydraHeadV1'</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- - excluding 0 for quantity to mimic minting/burning</span><span>
+</span><span id="line-45"></span><span class="annot"><a href="Hydra.Chain.Direct.Contract.Gen.html#genMintedOrBurnedValue"><span class="hs-identifier hs-type">genMintedOrBurnedValue</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Gen</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Value</span></span><span>
+</span><span id="line-46"></span><span id="genMintedOrBurnedValue"><span class="annot"><span class="annottext">genMintedOrBurnedValue :: Gen Value
+</span><a href="Hydra.Chain.Direct.Contract.Gen.html#genMintedOrBurnedValue"><span class="hs-identifier hs-var hs-var">genMintedOrBurnedValue</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-47"></span><span>  </span><span id="local-6989586621679483449"><span class="annot"><span class="annottext">PolicyId
+</span><a href="#local-6989586621679483449"><span class="hs-identifier hs-var">policyId</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-48"></span><span>    </span><span class="annot"><span class="annottext">[Gen PolicyId] -&gt; Gen PolicyId
+forall a. [Gen a] -&gt; Gen a
+</span><span class="hs-identifier hs-var">oneof</span></span><span>
+</span><span id="line-49"></span><span>      </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">TxIn -&gt; PolicyId
+</span><span class="hs-identifier hs-var">headPolicyId</span></span><span> </span><span class="annot"><span class="annottext">(TxIn -&gt; PolicyId) -&gt; Gen TxIn -&gt; Gen PolicyId
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/Data.Functor.html#%3C%24%3E"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Gen TxIn
+forall a. Arbitrary a =&gt; Gen a
+</span><span class="hs-identifier hs-var">arbitrary</span></span><span>
+</span><span id="line-50"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">PolicyId -&gt; Gen PolicyId
+forall a. a -&gt; Gen a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Base.html#pure"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="annot"><span class="annottext">PolicyId
+</span><span class="hs-identifier hs-var">Fixtures.testPolicyId</span></span><span>
+</span><span id="line-51"></span><span>      </span><span class="hs-special">]</span><span>
+</span><span id="line-52"></span><span>  </span><span id="local-6989586621679483451"><span class="annot"><span class="annottext">AssetName
+</span><a href="#local-6989586621679483451"><span class="hs-identifier hs-var">tokenName</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Gen AssetName] -&gt; Gen AssetName
+forall a. [Gen a] -&gt; Gen a
+</span><span class="hs-identifier hs-var">oneof</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Gen AssetName
+forall a. Arbitrary a =&gt; Gen a
+</span><span class="hs-identifier hs-var">arbitrary</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">AssetName -&gt; Gen AssetName
+forall a. a -&gt; Gen a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Base.html#pure"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; AssetName
+</span><span class="hs-identifier hs-var">AssetName</span></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; AssetName) -&gt; ByteString -&gt; AssetName
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">BuiltinByteString -&gt; ByteString
+forall arep a. FromBuiltin arep a =&gt; arep -&gt; a
+</span><span class="hs-identifier hs-var">fromBuiltin</span></span><span> </span><span class="annot"><span class="annottext">BuiltinByteString
+</span><span class="hs-identifier hs-var">hydraHeadV1</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-53"></span><span>  </span><span id="local-6989586621679483453"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679483453"><span class="hs-identifier hs-var">quantity</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Gen Integer
+forall a. Arbitrary a =&gt; Gen a
+</span><span class="hs-identifier hs-var">arbitrary</span></span><span> </span><span class="annot"><span class="annottext">Gen Integer -&gt; (Integer -&gt; Bool) -&gt; Gen Integer
+forall a. Gen a -&gt; (a -&gt; Bool) -&gt; Gen a
+</span><span class="hs-operator hs-var">`suchThat`</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/ghc-prim-0.10.0/src/GHC.Classes.html#%2F%3D"><span class="hs-operator hs-var">/=</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>  </span><span class="annot"><span class="annottext">Value -&gt; Gen Value
+forall a. a -&gt; Gen a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Base.html#pure"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="annot"><span class="annottext">(Value -&gt; Gen Value) -&gt; Value -&gt; Gen Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">[(AssetId, Quantity)] -&gt; Value
+</span><span class="hs-identifier hs-var">valueFromList</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">PolicyId -&gt; AssetName -&gt; AssetId
+</span><span class="hs-identifier hs-var">AssetId</span></span><span> </span><span class="annot"><span class="annottext">PolicyId
+</span><a href="#local-6989586621679483449"><span class="hs-identifier hs-var">policyId</span></a></span><span> </span><span class="annot"><span class="annottext">AssetName
+</span><a href="#local-6989586621679483451"><span class="hs-identifier hs-var">tokenName</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Quantity
+</span><span class="hs-identifier hs-var">Quantity</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679483453"><span class="hs-identifier hs-var">quantity</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-55"></span></pre></body></html>

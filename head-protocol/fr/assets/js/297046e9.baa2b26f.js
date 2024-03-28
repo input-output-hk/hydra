@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkhydra_head_protocol_docs=self.webpackChunkhydra_head_protocol_docs||[]).push([[2059],{46134:o=>{o.exports=JSON.parse('{"label":"monthly","permalink":"/head-protocol/fr/monthly/tags/monthly","allTagsPath":"/head-protocol/fr/monthly/tags","count":13}')}}]);

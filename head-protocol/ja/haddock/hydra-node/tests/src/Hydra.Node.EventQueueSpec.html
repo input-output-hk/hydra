@@ -1,0 +1,116 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Hydra.Node.EventQueueSpec</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Prelude</span></span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.IOSim</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">IOSim</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">runSimOrThrow</span></span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Hydra.API.ServerSpec.html"><span class="hs-identifier">Hydra.API.ServerSpec</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.API.ServerSpec.html#strictlyMonotonic"><span class="hs-identifier">strictlyMonotonic</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Node.EventQueue</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Queued</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">eventId</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">createEventQueue</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">nextEvent</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">putEvent</span></span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Test.Hspec</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Spec</span></span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Test.Hspec.QuickCheck</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">prop</span></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Test.QuickCheck</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">NonEmptyList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">NonEmpty</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Property</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">counterexample</span></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="annot"><a href="Hydra.Node.EventQueueSpec.html#spec"><span class="hs-identifier hs-type">spec</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Spec</span></span><span>
+</span><span id="line-13"></span><span id="spec"><span class="annot"><span class="annottext">spec :: Spec
+</span><a href="Hydra.Node.EventQueueSpec.html#spec"><span class="hs-identifier hs-var hs-var">spec</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-14"></span><span>  </span><span class="annot"><span class="annottext">String -&gt; (NonEmptyList DummyEvent -&gt; Property) -&gt; Spec
+forall prop.
+(HasCallStack, Testable prop) =&gt;
+String -&gt; prop -&gt; Spec
+</span><span class="hs-identifier hs-var">prop</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;adds sequential id to all events enqueued&quot;</span></span><span> </span><span class="annot"><span class="annottext">NonEmptyList DummyEvent -&gt; Property
+</span><a href="Hydra.Node.EventQueueSpec.html#prop_identify_enqueued_events"><span class="hs-identifier hs-var">prop_identify_enqueued_events</span></a></span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">newtype</span><span> </span><span id="DummyEvent"><span class="annot"><a href="Hydra.Node.EventQueueSpec.html#DummyEvent"><span class="hs-identifier hs-var">DummyEvent</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="DummyEvent"><span class="annot"><a href="Hydra.Node.EventQueueSpec.html#DummyEvent"><span class="hs-identifier hs-var">DummyEvent</span></a></span></span><span> </span><span class="annot"><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/ghc-prim-0.10.0/src/GHC.Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679506927"><span id="local-6989586621679506932"><span class="annot"><span class="annottext">DummyEvent -&gt; DummyEvent -&gt; Bool
+(DummyEvent -&gt; DummyEvent -&gt; Bool)
+-&gt; (DummyEvent -&gt; DummyEvent -&gt; Bool) -&gt; Eq DummyEvent
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: DummyEvent -&gt; DummyEvent -&gt; Bool
+== :: DummyEvent -&gt; DummyEvent -&gt; Bool
+$c/= :: DummyEvent -&gt; DummyEvent -&gt; Bool
+/= :: DummyEvent -&gt; DummyEvent -&gt; Bool
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/ghc-prim-0.10.0/src/GHC.Classes.html#Eq"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></a></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679506938"><span id="local-6989586621679506943"><span id="local-6989586621679506947"><span class="annot"><span class="annottext">Int -&gt; DummyEvent -&gt; ShowS
+[DummyEvent] -&gt; ShowS
+DummyEvent -&gt; String
+(Int -&gt; DummyEvent -&gt; ShowS)
+-&gt; (DummyEvent -&gt; String)
+-&gt; ([DummyEvent] -&gt; ShowS)
+-&gt; Show DummyEvent
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; DummyEvent -&gt; ShowS
+showsPrec :: Int -&gt; DummyEvent -&gt; ShowS
+$cshow :: DummyEvent -&gt; String
+show :: DummyEvent -&gt; String
+$cshowList :: [DummyEvent] -&gt; ShowS
+showList :: [DummyEvent] -&gt; ShowS
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Show.html#Show"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></a></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679506952"><span id="local-6989586621679506957"><span class="annot"><span class="annottext">Gen DummyEvent
+Gen DummyEvent
+-&gt; (DummyEvent -&gt; [DummyEvent]) -&gt; Arbitrary DummyEvent
+DummyEvent -&gt; [DummyEvent]
+forall a. Gen a -&gt; (a -&gt; [a]) -&gt; Arbitrary a
+$carbitrary :: Gen DummyEvent
+arbitrary :: Gen DummyEvent
+$cshrink :: DummyEvent -&gt; [DummyEvent]
+shrink :: DummyEvent -&gt; [DummyEvent]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Arbitrary</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="annot"><a href="Hydra.Node.EventQueueSpec.html#prop_identify_enqueued_events"><span class="hs-identifier hs-type">prop_identify_enqueued_events</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NonEmptyList</span></span><span> </span><span class="annot"><a href="Hydra.Node.EventQueueSpec.html#DummyEvent"><span class="hs-identifier hs-type">DummyEvent</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Property</span></span><span>
+</span><span id="line-20"></span><span id="prop_identify_enqueued_events"><span class="annot"><span class="annottext">prop_identify_enqueued_events :: NonEmptyList DummyEvent -&gt; Property
+</span><a href="Hydra.Node.EventQueueSpec.html#prop_identify_enqueued_events"><span class="hs-identifier hs-var hs-var">prop_identify_enqueued_events</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">NonEmpty</span></span><span> </span><span id="local-6989586621679506961"><span class="annot"><span class="annottext">[DummyEvent]
+</span><a href="#local-6989586621679506961"><span class="hs-identifier hs-var">events</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679506844"><span class="annot"><a href="#local-6989586621679506962"><span class="hs-identifier hs-type">test</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IOSim</span></span><span> </span><span class="annot"><a href="#local-6989586621679506844"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Word.html#Word64"><span class="hs-identifier hs-type">Word64</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-22"></span><span>      </span><span id="local-6989586621679506962"><span class="annot"><span class="annottext">test :: forall s. IOSim s [Word64]
+</span><a href="#local-6989586621679506962"><span class="hs-identifier hs-var hs-var">test</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-23"></span><span>        </span><span id="local-6989586621679506977"><span class="annot"><span class="annottext">EventQueue (IOSim s) DummyEvent
+</span><a href="#local-6989586621679506977"><span class="hs-identifier hs-var">q</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IOSim s (EventQueue (IOSim s) DummyEvent)
+forall (m :: * -&gt; *) e.
+(MonadDelay m, MonadAsync m, MonadLabelledSTM m) =&gt;
+m (EventQueue m e)
+</span><span class="hs-identifier hs-var">createEventQueue</span></span><span>
+</span><span id="line-24"></span><span>        </span><span class="annot"><span class="annottext">[DummyEvent] -&gt; (DummyEvent -&gt; IOSim s Word64) -&gt; IOSim s [Word64]
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+t a -&gt; (a -&gt; m b) -&gt; m (t b)
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/Data.Traversable.html#forM"><span class="hs-identifier hs-var">forM</span></a></span><span> </span><span class="annot"><span class="annottext">[DummyEvent]
+</span><a href="#local-6989586621679506961"><span class="hs-identifier hs-var">events</span></a></span><span> </span><span class="annot"><span class="annottext">((DummyEvent -&gt; IOSim s Word64) -&gt; IOSim s [Word64])
+-&gt; (DummyEvent -&gt; IOSim s Word64) -&gt; IOSim s [Word64]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679506979"><span class="annot"><span class="annottext">DummyEvent
+</span><a href="#local-6989586621679506979"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-25"></span><span>          </span><span class="annot"><span class="annottext">EventQueue (IOSim s) DummyEvent -&gt; DummyEvent -&gt; IOSim s ()
+forall (m :: * -&gt; *) e. EventQueue m e -&gt; e -&gt; m ()
+</span><span class="hs-identifier hs-var">putEvent</span></span><span> </span><span class="annot"><span class="annottext">EventQueue (IOSim s) DummyEvent
+</span><a href="#local-6989586621679506977"><span class="hs-identifier hs-var">q</span></a></span><span> </span><span class="annot"><span class="annottext">DummyEvent
+</span><a href="#local-6989586621679506979"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-26"></span><span>          </span><span class="annot"><span class="annottext">Queued DummyEvent -&gt; Word64
+forall e. Queued e -&gt; Word64
+</span><span class="hs-identifier hs-var">eventId</span></span><span> </span><span class="annot"><span class="annottext">(Queued DummyEvent -&gt; Word64)
+-&gt; IOSim s (Queued DummyEvent) -&gt; IOSim s Word64
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/Data.Functor.html#%3C%24%3E"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">EventQueue (IOSim s) DummyEvent -&gt; IOSim s (Queued DummyEvent)
+forall (m :: * -&gt; *) e. EventQueue m e -&gt; m (Queued e)
+</span><span class="hs-identifier hs-var">nextEvent</span></span><span> </span><span class="annot"><span class="annottext">EventQueue (IOSim s) DummyEvent
+</span><a href="#local-6989586621679506977"><span class="hs-identifier hs-var">q</span></a></span><span>
+</span><span id="line-27"></span><span>      </span><span id="local-6989586621679506981"><span class="annot"><span class="annottext">eventIds :: [Word64]
+</span><a href="#local-6989586621679506981"><span class="hs-identifier hs-var hs-var">eventIds</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(forall s. IOSim s [Word64]) -&gt; [Word64]
+forall a. (forall s. IOSim s a) -&gt; a
+</span><span class="hs-identifier hs-var">runSimOrThrow</span></span><span> </span><span class="annot"><span class="annottext">IOSim s [Word64]
+forall s. IOSim s [Word64]
+</span><a href="#local-6989586621679506962"><span class="hs-identifier hs-var">test</span></a></span><span>
+</span><span id="line-28"></span><span>   </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">[Word64] -&gt; Bool
+forall a. (Eq a, Enum a) =&gt; [a] -&gt; Bool
+</span><a href="Hydra.API.ServerSpec.html#strictlyMonotonic"><span class="hs-identifier hs-var">strictlyMonotonic</span></a></span><span> </span><span class="annot"><span class="annottext">[Word64]
+</span><a href="#local-6989586621679506981"><span class="hs-identifier hs-var">eventIds</span></a></span><span>
+</span><span id="line-29"></span><span>        </span><span class="annot"><span class="annottext">Bool -&gt; (Bool -&gt; Property) -&gt; Property
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/Data.Function.html#%26"><span class="hs-operator hs-var">&amp;</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; Bool -&gt; Property
+forall prop. Testable prop =&gt; String -&gt; prop -&gt; Property
+</span><span class="hs-identifier hs-var">counterexample</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;queued ids: &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Base.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">[Word64] -&gt; String
+forall b a. (Show a, IsString b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">[Word64]
+</span><a href="#local-6989586621679506981"><span class="hs-identifier hs-var">eventIds</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span></pre></body></html>

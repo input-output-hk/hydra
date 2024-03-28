@@ -1,0 +1,522 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveAnyClass #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DuplicateRecordFields #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="annot"><span class="hs-comment">-- | Utility functions to filter and simplify raw logs.</span></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Hydra.LogFilter</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Base.html#id"><span class="hs-identifier">id</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/containers-0.6.7/src/Data.Map.html"><span class="hs-identifier">Data.Map</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.API.ClientInput</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ClientInput</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">NewTx</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.API.ServerOutput</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ServerOutput</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.HeadLogic</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Effect</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Event</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Ledger</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">IsTx</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Logging</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Envelope</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Logging.Messages</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">HydraLog</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Node</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Network.Message</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Message</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Node</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">HydraNodeLog</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Snapshot</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Snapshot</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="annot"><span class="hs-comment">-- | A trace of an event or effect for a specific transaction.</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">data</span><span> </span><span id="Trace"><span class="annot"><a href="Hydra.LogFilter.html#Trace"><span class="hs-identifier hs-var">Trace</span></a></span></span><span> </span><span id="local-6989586621679411544"><span class="annot"><a href="#local-6989586621679411544"><span class="hs-identifier hs-type">tx</span></a></span></span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="TraceEvent"><span class="annot"><a href="Hydra.LogFilter.html#TraceEvent"><span class="hs-identifier hs-var">TraceEvent</span></a></span></span><span>
+</span><span id="line-23"></span><span>      </span><span class="hs-special">{</span><span> </span><span id="%24sel%3Atimestamp%3ATraceEvent"><span class="annot"><span class="annottext">forall tx. Trace tx -&gt; UTCTime
+</span><a href="Hydra.LogFilter.html#%24sel%3Atimestamp%3ATraceEvent"><span class="hs-identifier hs-var hs-var">timestamp</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/time-1.12.2/src/Data.Time.Clock.Internal.UTCTime.html#UTCTime"><span class="hs-identifier hs-type">UTCTime</span></a></span><span>
+</span><span id="line-24"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ The starting point in time for this event.</span></span><span>
+</span><span id="line-25"></span><span>      </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Atxid%3ATraceEvent"><span class="annot"><span class="annottext">forall tx. Trace tx -&gt; TxIdType tx
+</span><a href="Hydra.LogFilter.html#%24sel%3Atxid%3ATraceEvent"><span class="hs-identifier hs-var hs-var">txid</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TxIdType</span></span><span> </span><span class="annot"><a href="#local-6989586621679411544"><span class="hs-identifier hs-type">tx</span></a></span><span>
+</span><span id="line-26"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ The transaction id this event applies to.</span></span><span>
+</span><span id="line-27"></span><span>      </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Aus%3ATraceEvent"><span class="annot"><span class="annottext">forall tx. Trace tx -&gt; NominalDiffTime
+</span><a href="Hydra.LogFilter.html#%24sel%3Aus%3ATraceEvent"><span class="hs-identifier hs-var hs-var">us</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/time-1.12.2/src/Data.Time.Clock.Internal.NominalDiffTime.html#NominalDiffTime"><span class="hs-identifier hs-type">NominalDiffTime</span></a></span><span>
+</span><span id="line-28"></span><span>      </span><span class="hs-comment">-- ^ The duration of the event, expressed as a number of</span><span>
+</span><span id="line-29"></span><span>      </span><span class="hs-comment">-- seconds with a $10^12$ precision.</span><span>
+</span><span id="line-30"></span><span>      </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Aevent%3ATraceEvent"><span class="annot"><span class="annottext">forall tx. Trace tx -&gt; Text
+</span><a href="Hydra.LogFilter.html#%24sel%3Aevent%3ATraceEvent"><span class="hs-identifier hs-var hs-var">event</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/text-2.0.2/src/Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span>
+</span><span id="line-31"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ A string identifying this event.</span></span><span>
+</span><span id="line-32"></span><span>      </span><span class="hs-special">}</span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="TraceEffect"><span class="annot"><a href="Hydra.LogFilter.html#TraceEffect"><span class="hs-identifier hs-var">TraceEffect</span></a></span></span><span>
+</span><span id="line-34"></span><span>      </span><span class="hs-special">{</span><span> </span><span id="%24sel%3Atimestamp%3ATraceEvent"><span class="annot"><a href="Hydra.LogFilter.html#%24sel%3Atimestamp%3ATraceEvent"><span class="hs-identifier hs-var">timestamp</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/time-1.12.2/src/Data.Time.Clock.Internal.UTCTime.html#UTCTime"><span class="hs-identifier hs-type">UTCTime</span></a></span><span>
+</span><span id="line-35"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ The starting point in time for this effect.</span></span><span>
+</span><span id="line-36"></span><span>      </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Atxid%3ATraceEvent"><span class="annot"><a href="Hydra.LogFilter.html#%24sel%3Atxid%3ATraceEvent"><span class="hs-identifier hs-var">txid</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TxIdType</span></span><span> </span><span class="annot"><a href="#local-6989586621679411544"><span class="hs-identifier hs-type">tx</span></a></span><span>
+</span><span id="line-37"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ The transaction id this effect applies to.</span></span><span>
+</span><span id="line-38"></span><span>      </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Aus%3ATraceEvent"><span class="annot"><a href="Hydra.LogFilter.html#%24sel%3Aus%3ATraceEvent"><span class="hs-identifier hs-var">us</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/time-1.12.2/src/Data.Time.Clock.Internal.NominalDiffTime.html#NominalDiffTime"><span class="hs-identifier hs-type">NominalDiffTime</span></a></span><span>
+</span><span id="line-39"></span><span>      </span><span class="hs-comment">-- ^ The duration of the effect, expressed as a number of</span><span>
+</span><span id="line-40"></span><span>      </span><span class="hs-comment">-- seconds with a $10^12$ precision.</span><span>
+</span><span id="line-41"></span><span>      </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Aeffect%3ATraceEvent"><span class="annot"><span class="annottext">forall tx. Trace tx -&gt; Text
+</span><a href="Hydra.LogFilter.html#%24sel%3Aeffect%3ATraceEvent"><span class="hs-identifier hs-var hs-var">effect</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/text-2.0.2/src/Data.Text.Internal.html#Text"><span class="hs-identifier hs-type">Text</span></a></span><span>
+</span><span id="line-42"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ A string identifying this effect.</span></span><span>
+</span><span id="line-43"></span><span>      </span><span class="hs-special">}</span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679411785"><span id="local-6989586621679411787"><span class="annot"><span class="annottext">(forall x. Trace tx -&gt; Rep (Trace tx) x)
+-&gt; (forall x. Rep (Trace tx) x -&gt; Trace tx) -&gt; Generic (Trace tx)
+forall x. Rep (Trace tx) x -&gt; Trace tx
+forall x. Trace tx -&gt; Rep (Trace tx) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall tx x. Rep (Trace tx) x -&gt; Trace tx
+forall tx x. Trace tx -&gt; Rep (Trace tx) x
+$cfrom :: forall tx x. Trace tx -&gt; Rep (Trace tx) x
+from :: forall x. Trace tx -&gt; Rep (Trace tx) x
+$cto :: forall tx x. Rep (Trace tx) x -&gt; Trace tx
+to :: forall x. Rep (Trace tx) x -&gt; Trace tx
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Generics.html#Generic"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></a></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span id="local-6989586621679411792"><span id="local-6989586621679411806"><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621679411564"><span class="annot"><a href="#local-6989586621679411564"><span class="hs-keyword hs-type">stock</span></a></span></span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IsTx</span></span><span> </span><span class="annot"><a href="#local-6989586621679411564"><span class="hs-identifier hs-type">tx</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/ghc-prim-0.10.0/src/GHC.Classes.html#Eq"><span class="hs-identifier hs-type">Eq</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.LogFilter.html#Trace"><span class="hs-identifier hs-type">Trace</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679411564"><span class="hs-identifier hs-type">tx</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-47"></span><span id="local-6989586621679411813"><span id="local-6989586621679411830"><span id="local-6989586621679411834"><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621679411568"><span class="annot"><a href="#local-6989586621679411568"><span class="hs-keyword hs-type">stock</span></a></span></span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IsTx</span></span><span> </span><span class="annot"><a href="#local-6989586621679411568"><span class="hs-identifier hs-type">tx</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Show.html#Show"><span class="hs-identifier hs-type">Show</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.LogFilter.html#Trace"><span class="hs-identifier hs-type">Trace</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679411568"><span class="hs-identifier hs-type">tx</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-48"></span><span id="local-6989586621679411840"><span id="local-6989586621679411847"><span id="local-6989586621679411850"><span id="local-6989586621679411853"><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621679411716"><span class="annot"><a href="#local-6989586621679411716"><span class="hs-keyword hs-type">anyclass</span></a></span></span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IsTx</span></span><span> </span><span class="annot"><a href="#local-6989586621679411716"><span class="hs-identifier hs-type">tx</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.LogFilter.html#Trace"><span class="hs-identifier hs-type">Trace</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679411716"><span class="hs-identifier hs-type">tx</span></a></span><span class="hs-special">)</span></span></span></span></span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">data</span><span> </span><span id="TraceKey"><span class="annot"><a href="Hydra.LogFilter.html#TraceKey"><span class="hs-identifier hs-var">TraceKey</span></a></span></span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="EventKey"><span class="annot"><a href="Hydra.LogFilter.html#EventKey"><span class="hs-identifier hs-var">EventKey</span></a></span></span><span> </span><span class="annot"><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Word.html#Word64"><span class="hs-identifier hs-type">Word64</span></a></span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="EffectKey"><span class="annot"><a href="Hydra.LogFilter.html#EffectKey"><span class="hs-identifier hs-var">EffectKey</span></a></span></span><span> </span><span class="annot"><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Word.html#Word64"><span class="hs-identifier hs-type">Word64</span></a></span><span> </span><span class="annot"><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Word.html#Word32"><span class="hs-identifier hs-type">Word32</span></a></span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679412053"><span id="local-6989586621679412060"><span class="annot"><span class="annottext">TraceKey -&gt; TraceKey -&gt; Bool
+(TraceKey -&gt; TraceKey -&gt; Bool)
+-&gt; (TraceKey -&gt; TraceKey -&gt; Bool) -&gt; Eq TraceKey
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: TraceKey -&gt; TraceKey -&gt; Bool
+== :: TraceKey -&gt; TraceKey -&gt; Bool
+$c/= :: TraceKey -&gt; TraceKey -&gt; Bool
+/= :: TraceKey -&gt; TraceKey -&gt; Bool
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/ghc-prim-0.10.0/src/GHC.Classes.html#Eq"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></a></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679412064"><span id="local-6989586621679412073"><span id="local-6989586621679412077"><span class="annot"><span class="annottext">Int -&gt; TraceKey -&gt; ShowS
+[TraceKey] -&gt; ShowS
+TraceKey -&gt; String
+(Int -&gt; TraceKey -&gt; ShowS)
+-&gt; (TraceKey -&gt; String) -&gt; ([TraceKey] -&gt; ShowS) -&gt; Show TraceKey
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; TraceKey -&gt; ShowS
+showsPrec :: Int -&gt; TraceKey -&gt; ShowS
+$cshow :: TraceKey -&gt; String
+show :: TraceKey -&gt; String
+$cshowList :: [TraceKey] -&gt; ShowS
+showList :: [TraceKey] -&gt; ShowS
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Show.html#Show"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></a></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679412082"><span id="local-6989586621679412089"><span id="local-6989586621679412094"><span id="local-6989586621679412098"><span id="local-6989586621679412101"><span id="local-6989586621679412104"><span id="local-6989586621679412107"><span class="annot"><span class="annottext">Eq TraceKey
+Eq TraceKey =&gt;
+(TraceKey -&gt; TraceKey -&gt; Ordering)
+-&gt; (TraceKey -&gt; TraceKey -&gt; Bool)
+-&gt; (TraceKey -&gt; TraceKey -&gt; Bool)
+-&gt; (TraceKey -&gt; TraceKey -&gt; Bool)
+-&gt; (TraceKey -&gt; TraceKey -&gt; Bool)
+-&gt; (TraceKey -&gt; TraceKey -&gt; TraceKey)
+-&gt; (TraceKey -&gt; TraceKey -&gt; TraceKey)
+-&gt; Ord TraceKey
+TraceKey -&gt; TraceKey -&gt; Bool
+TraceKey -&gt; TraceKey -&gt; Ordering
+TraceKey -&gt; TraceKey -&gt; TraceKey
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: TraceKey -&gt; TraceKey -&gt; Ordering
+compare :: TraceKey -&gt; TraceKey -&gt; Ordering
+$c&lt; :: TraceKey -&gt; TraceKey -&gt; Bool
+&lt; :: TraceKey -&gt; TraceKey -&gt; Bool
+$c&lt;= :: TraceKey -&gt; TraceKey -&gt; Bool
+&lt;= :: TraceKey -&gt; TraceKey -&gt; Bool
+$c&gt; :: TraceKey -&gt; TraceKey -&gt; Bool
+&gt; :: TraceKey -&gt; TraceKey -&gt; Bool
+$c&gt;= :: TraceKey -&gt; TraceKey -&gt; Bool
+&gt;= :: TraceKey -&gt; TraceKey -&gt; Bool
+$cmax :: TraceKey -&gt; TraceKey -&gt; TraceKey
+max :: TraceKey -&gt; TraceKey -&gt; TraceKey
+$cmin :: TraceKey -&gt; TraceKey -&gt; TraceKey
+min :: TraceKey -&gt; TraceKey -&gt; TraceKey
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/ghc-prim-0.10.0/src/GHC.Classes.html#Ord"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></a></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- | Compute duration of some `Event`s and `Effect`s from logs.</span><span>
+</span><span id="line-56"></span><span class="hs-comment">--</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- This function is meant to be used with a `sequence` in order to traverse a stream of</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- log entries and output list of `Trace` as begin/end pairs are found and identified.</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- Each `Trace` emitted is tied to a specific transaction id which provides an easy way to</span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- identify in which part of their journey through Hydra transactions are spending time.</span><span>
+</span><span id="line-61"></span><span class="hs-comment">--</span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- It currently compute duration of:</span><span>
+</span><span id="line-63"></span><span class="hs-comment">--  * `NewTx`, `ReqTx`, `ReqSn` events,</span><span>
+</span><span id="line-64"></span><span class="hs-comment">--  * `ReqTx`,  `TxValid` and `SnapshotConfirmed` effects.</span><span>
+</span><span id="line-65"></span><span class="hs-comment">--</span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- NOTE: Some potential improvements</span><span>
+</span><span id="line-67"></span><span class="hs-comment">--  * Move this function to `Monitoring` and expose an histogram kind of metric for each type of event / effect</span><span>
+</span><span id="line-68"></span><span class="hs-comment">--  * Handle more events, in particular the `AckSn` which is slightly problematic as it does not contain</span><span>
+</span><span id="line-69"></span><span class="hs-comment">--    a direct reference to a transaction id so we would need to carry around a secondary map to keep</span><span>
+</span><span id="line-70"></span><span class="hs-comment">--    track of this link.</span><span>
+</span><span id="line-71"></span><span id="local-6989586621679411719"><span class="annot"><a href="Hydra.LogFilter.html#tracePerformance"><span class="hs-identifier hs-type">tracePerformance</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IsTx</span></span><span> </span><span class="annot"><a href="#local-6989586621679411719"><span class="hs-identifier hs-type">tx</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Envelope</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">HydraLog</span></span><span> </span><span class="annot"><a href="#local-6989586621679411719"><span class="hs-identifier hs-type">tx</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Message</span></span><span> </span><span class="annot"><a href="#local-6989586621679411719"><span class="hs-identifier hs-type">tx</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/transformers-0.6.1.0/src/Control.Monad.Trans.State.Strict.html#State"><span class="hs-identifier hs-type">State</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/containers-0.6.7/src/Data.Map.Internal.html#Map"><span class="hs-identifier hs-type">Map</span></a></span><span> </span><span class="annot"><a href="Hydra.LogFilter.html#TraceKey"><span class="hs-identifier hs-type">TraceKey</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Hydra.LogFilter.html#Trace"><span class="hs-identifier hs-type">Trace</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679411719"><span class="hs-identifier hs-type">tx</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Hydra.LogFilter.html#Trace"><span class="hs-identifier hs-type">Trace</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679411719"><span class="hs-identifier hs-type">tx</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-72"></span><span id="tracePerformance"><span class="annot"><span class="annottext">tracePerformance :: forall tx.
+IsTx tx =&gt;
+Envelope (HydraLog tx (Message tx))
+-&gt; State (Map TraceKey [Trace tx]) [Trace tx]
+</span><a href="Hydra.LogFilter.html#tracePerformance"><span class="hs-identifier hs-var hs-var">tracePerformance</span></a></span></span><span> </span><span id="local-6989586621679412184"><span class="annot"><span class="annottext">Envelope (HydraLog tx (Message tx))
+</span><a href="#local-6989586621679412184"><span class="hs-identifier hs-var">envelope</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-73"></span><span>  </span><span id="local-6989586621679412185"><span class="annot"><span class="annottext">Map TraceKey [Trace tx]
+</span><a href="#local-6989586621679412185"><span class="hs-identifier hs-var">pending</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">StateT (Map TraceKey [Trace tx]) Identity (Map TraceKey [Trace tx])
+forall s (m :: * -&gt; *). MonadState s m =&gt; m s
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/mtl-2.3.1/src/Control.Monad.State.Class.html#get"><span class="hs-identifier hs-var">get</span></a></span><span>
+</span><span id="line-74"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Envelope (HydraLog tx (Message tx))
+</span><a href="#local-6989586621679412184"><span class="hs-identifier hs-var">envelope</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-75"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Envelope</span></span><span class="hs-special">{</span><span id="local-6989586621679412188"><span class="annot"><span class="annottext">UTCTime
+timestamp :: UTCTime
+$sel:timestamp:Envelope :: forall a. Envelope a -&gt; UTCTime
+</span><a href="#local-6989586621679412188"><span class="hs-identifier hs-var hs-var">timestamp</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:message:Envelope :: forall a. Envelope a -&gt; a
+</span><span class="hs-identifier hs-var">message</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Node</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">BeginEvent</span></span><span class="hs-special">{</span><span id="local-6989586621679412192"><span class="annot"><span class="annottext">Word64
+eventId :: Word64
+$sel:eventId:BeginEvent :: forall tx. HydraNodeLog tx -&gt; Word64
+</span><a href="#local-6989586621679412192"><span class="hs-identifier hs-var hs-var">eventId</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:event:BeginEvent :: forall tx. HydraNodeLog tx -&gt; Event tx
+</span><span class="hs-identifier hs-var">event</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ClientEvent</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">NewTx</span></span><span> </span><span id="local-6989586621679412196"><span class="annot"><span class="annottext">tx
+</span><a href="#local-6989586621679412196"><span class="hs-identifier hs-var">tx</span></a></span></span><span class="hs-special">)</span><span class="hs-special">}</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-76"></span><span>      </span><span class="annot"><span class="annottext">Map TraceKey [Trace tx]
+-&gt; StateT (Map TraceKey [Trace tx]) Identity ()
+forall s (m :: * -&gt; *). MonadState s m =&gt; s -&gt; m ()
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/mtl-2.3.1/src/Control.Monad.State.Class.html#put"><span class="hs-identifier hs-var">put</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TraceKey
+-&gt; [Trace tx] -&gt; Map TraceKey [Trace tx] -&gt; Map TraceKey [Trace tx]
+forall k a. Ord k =&gt; k -&gt; a -&gt; Map k a -&gt; Map k a
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/containers-0.6.7/src/Data.Map.Internal.html#insert"><span class="hs-identifier hs-var">Map.insert</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64 -&gt; TraceKey
+</span><a href="Hydra.LogFilter.html#EventKey"><span class="hs-identifier hs-var">EventKey</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679412192"><span class="hs-identifier hs-var">eventId</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Hydra.LogFilter.html#TraceEvent"><span class="hs-identifier hs-type">TraceEvent</span></a></span><span class="hs-special">{</span><span class="annot"><span class="annottext">$sel:event:TraceEvent :: Text
+</span><a href="Hydra.LogFilter.html#%24sel%3Aevent%3ATraceEvent"><span class="hs-identifier hs-var">event</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;NewTx&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">UTCTime
+$sel:timestamp:TraceEvent :: UTCTime
+timestamp :: UTCTime
+</span><a href="Hydra.LogFilter.html#%24sel%3Atimestamp%3ATraceEvent"><span class="hs-identifier hs-var hs-var">timestamp</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:txid:TraceEvent :: TxIdType tx
+</span><a href="Hydra.LogFilter.html#%24sel%3Atxid%3ATraceEvent"><span class="hs-identifier hs-var">txid</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">tx -&gt; TxIdType tx
+forall tx. IsTx tx =&gt; tx -&gt; TxIdType tx
+</span><span class="hs-identifier hs-var">txId</span></span><span> </span><span class="annot"><span class="annottext">tx
+</span><a href="#local-6989586621679412196"><span class="hs-identifier hs-var">tx</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:us:TraceEvent :: NominalDiffTime
+</span><a href="Hydra.LogFilter.html#%24sel%3Aus%3ATraceEvent"><span class="hs-identifier hs-var">us</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NominalDiffTime
+</span><span class="hs-number">0</span></span><span class="hs-special">}</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">Map TraceKey [Trace tx]
+</span><a href="#local-6989586621679412185"><span class="hs-identifier hs-var">pending</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-77"></span><span>      </span><span class="annot"><span class="annottext">[Trace tx] -&gt; State (Map TraceKey [Trace tx]) [Trace tx]
+forall a. a -&gt; StateT (Map TraceKey [Trace tx]) Identity a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Base.html#pure"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-78"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Envelope</span></span><span class="hs-special">{</span><span id="local-6989586621679412200"><span class="annot"><span class="annottext">UTCTime
+$sel:timestamp:Envelope :: forall a. Envelope a -&gt; UTCTime
+timestamp :: UTCTime
+</span><span class="hs-identifier hs-var hs-var">timestamp</span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:message:Envelope :: forall a. Envelope a -&gt; a
+</span><span class="hs-identifier hs-var">message</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Node</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">BeginEvent</span></span><span class="hs-special">{</span><span id="local-6989586621679412201"><span class="annot"><span class="annottext">Word64
+$sel:eventId:BeginEvent :: forall tx. HydraNodeLog tx -&gt; Word64
+eventId :: Word64
+</span><span class="hs-identifier hs-var hs-var">eventId</span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:event:BeginEvent :: forall tx. HydraNodeLog tx -&gt; Event tx
+</span><span class="hs-identifier hs-var">event</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NetworkEvent</span></span><span class="hs-special">{</span><span class="annot"><span class="annottext">$sel:message:ClientEvent :: forall tx. Event tx -&gt; Message tx
+</span><span class="hs-identifier hs-var">message</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ReqTx</span></span><span class="hs-special">{</span><span id="local-6989586621679412204"><span class="annot"><span class="annottext">tx
+transaction :: tx
+$sel:transaction:ReqTx :: forall tx. Message tx -&gt; tx
+</span><a href="#local-6989586621679412204"><span class="hs-identifier hs-var hs-var">transaction</span></a></span></span><span class="hs-special">}</span><span class="hs-special">}</span><span class="hs-special">}</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-79"></span><span>      </span><span class="annot"><span class="annottext">Map TraceKey [Trace tx]
+-&gt; StateT (Map TraceKey [Trace tx]) Identity ()
+forall s (m :: * -&gt; *). MonadState s m =&gt; s -&gt; m ()
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/mtl-2.3.1/src/Control.Monad.State.Class.html#put"><span class="hs-identifier hs-var">put</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TraceKey
+-&gt; [Trace tx] -&gt; Map TraceKey [Trace tx] -&gt; Map TraceKey [Trace tx]
+forall k a. Ord k =&gt; k -&gt; a -&gt; Map k a -&gt; Map k a
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/containers-0.6.7/src/Data.Map.Internal.html#insert"><span class="hs-identifier hs-var">Map.insert</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64 -&gt; TraceKey
+</span><a href="Hydra.LogFilter.html#EventKey"><span class="hs-identifier hs-var">EventKey</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679412201"><span class="hs-identifier hs-var">eventId</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Hydra.LogFilter.html#TraceEvent"><span class="hs-identifier hs-type">TraceEvent</span></a></span><span class="hs-special">{</span><span class="annot"><span class="annottext">$sel:event:TraceEvent :: Text
+</span><a href="Hydra.LogFilter.html#%24sel%3Aevent%3ATraceEvent"><span class="hs-identifier hs-var">event</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;ReqTx&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">UTCTime
+$sel:timestamp:TraceEvent :: UTCTime
+timestamp :: UTCTime
+</span><a href="Hydra.LogFilter.html#%24sel%3Atimestamp%3ATraceEvent"><span class="hs-identifier hs-var hs-var">timestamp</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:txid:TraceEvent :: TxIdType tx
+</span><a href="Hydra.LogFilter.html#%24sel%3Atxid%3ATraceEvent"><span class="hs-identifier hs-var">txid</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">tx -&gt; TxIdType tx
+forall tx. IsTx tx =&gt; tx -&gt; TxIdType tx
+</span><span class="hs-identifier hs-var">txId</span></span><span> </span><span class="annot"><span class="annottext">tx
+</span><a href="#local-6989586621679412204"><span class="hs-identifier hs-var">transaction</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:us:TraceEvent :: NominalDiffTime
+</span><a href="Hydra.LogFilter.html#%24sel%3Aus%3ATraceEvent"><span class="hs-identifier hs-var">us</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NominalDiffTime
+</span><span class="hs-number">0</span></span><span class="hs-special">}</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">Map TraceKey [Trace tx]
+</span><a href="#local-6989586621679412185"><span class="hs-identifier hs-var">pending</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span>      </span><span class="annot"><span class="annottext">[Trace tx] -&gt; State (Map TraceKey [Trace tx]) [Trace tx]
+forall a. a -&gt; StateT (Map TraceKey [Trace tx]) Identity a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Base.html#pure"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-81"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Envelope</span></span><span class="hs-special">{</span><span id="local-6989586621679412206"><span class="annot"><span class="annottext">UTCTime
+$sel:timestamp:Envelope :: forall a. Envelope a -&gt; UTCTime
+timestamp :: UTCTime
+</span><span class="hs-identifier hs-var hs-var">timestamp</span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:message:Envelope :: forall a. Envelope a -&gt; a
+</span><span class="hs-identifier hs-var">message</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Node</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">BeginEvent</span></span><span class="hs-special">{</span><span id="local-6989586621679412207"><span class="annot"><span class="annottext">Word64
+$sel:eventId:BeginEvent :: forall tx. HydraNodeLog tx -&gt; Word64
+eventId :: Word64
+</span><span class="hs-identifier hs-var hs-var">eventId</span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:event:BeginEvent :: forall tx. HydraNodeLog tx -&gt; Event tx
+</span><span class="hs-identifier hs-var">event</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NetworkEvent</span></span><span class="hs-special">{</span><span class="annot"><span class="annottext">$sel:message:ClientEvent :: forall tx. Event tx -&gt; Message tx
+</span><span class="hs-identifier hs-var">message</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ReqSn</span></span><span class="hs-special">{</span><span id="local-6989586621679412208"><span class="annot"><span class="annottext">[TxIdType tx]
+transactionIds :: [TxIdType tx]
+$sel:transactionIds:ReqTx :: forall tx. Message tx -&gt; [TxIdType tx]
+</span><a href="#local-6989586621679412208"><span class="hs-identifier hs-var hs-var">transactionIds</span></a></span></span><span class="hs-special">}</span><span class="hs-special">}</span><span class="hs-special">}</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-82"></span><span>      </span><span class="annot"><span class="annottext">Map TraceKey [Trace tx]
+-&gt; StateT (Map TraceKey [Trace tx]) Identity ()
+forall s (m :: * -&gt; *). MonadState s m =&gt; s -&gt; m ()
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/mtl-2.3.1/src/Control.Monad.State.Class.html#put"><span class="hs-identifier hs-var">put</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TraceKey
+-&gt; [Trace tx] -&gt; Map TraceKey [Trace tx] -&gt; Map TraceKey [Trace tx]
+forall k a. Ord k =&gt; k -&gt; a -&gt; Map k a -&gt; Map k a
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/containers-0.6.7/src/Data.Map.Internal.html#insert"><span class="hs-identifier hs-var">Map.insert</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64 -&gt; TraceKey
+</span><a href="Hydra.LogFilter.html#EventKey"><span class="hs-identifier hs-var">EventKey</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679412207"><span class="hs-identifier hs-var">eventId</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(TxIdType tx -&gt; Trace tx) -&gt; [TxIdType tx] -&gt; [Trace tx]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679412210"><span class="annot"><span class="annottext">TxIdType tx
+</span><a href="#local-6989586621679412210"><span class="hs-identifier hs-var">txid</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Hydra.LogFilter.html#TraceEvent"><span class="hs-identifier hs-type">TraceEvent</span></a></span><span class="hs-special">{</span><span class="annot"><span class="annottext">$sel:event:TraceEvent :: Text
+</span><a href="Hydra.LogFilter.html#%24sel%3Aevent%3ATraceEvent"><span class="hs-identifier hs-var">event</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;ReqSn&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">UTCTime
+$sel:timestamp:TraceEvent :: UTCTime
+timestamp :: UTCTime
+</span><a href="Hydra.LogFilter.html#%24sel%3Atimestamp%3ATraceEvent"><span class="hs-identifier hs-var hs-var">timestamp</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">TxIdType tx
+$sel:txid:TraceEvent :: TxIdType tx
+txid :: TxIdType tx
+</span><a href="Hydra.LogFilter.html#%24sel%3Atxid%3ATraceEvent"><span class="hs-identifier hs-var hs-var">txid</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:us:TraceEvent :: NominalDiffTime
+</span><a href="Hydra.LogFilter.html#%24sel%3Aus%3ATraceEvent"><span class="hs-identifier hs-var">us</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NominalDiffTime
+</span><span class="hs-number">0</span></span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[TxIdType tx]
+</span><a href="#local-6989586621679412208"><span class="hs-identifier hs-var">transactionIds</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Map TraceKey [Trace tx]
+</span><a href="#local-6989586621679412185"><span class="hs-identifier hs-var">pending</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-83"></span><span>      </span><span class="annot"><span class="annottext">[Trace tx] -&gt; State (Map TraceKey [Trace tx]) [Trace tx]
+forall a. a -&gt; StateT (Map TraceKey [Trace tx]) Identity a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Base.html#pure"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-84"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Envelope</span></span><span class="hs-special">{</span><span id="local-6989586621679412211"><span class="annot"><span class="annottext">UTCTime
+$sel:timestamp:Envelope :: forall a. Envelope a -&gt; UTCTime
+timestamp :: UTCTime
+</span><span class="hs-identifier hs-var hs-var">timestamp</span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:message:Envelope :: forall a. Envelope a -&gt; a
+</span><span class="hs-identifier hs-var">message</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Node</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">EndEvent</span></span><span class="hs-special">{</span><span id="local-6989586621679412213"><span class="annot"><span class="annottext">Word64
+$sel:eventId:BeginEvent :: forall tx. HydraNodeLog tx -&gt; Word64
+eventId :: Word64
+</span><span class="hs-identifier hs-var hs-var">eventId</span></span></span><span class="hs-special">}</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-85"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">TraceKey -&gt; Map TraceKey [Trace tx] -&gt; Maybe [Trace tx]
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Maybe a
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/containers-0.6.7/src/Data.Map.Internal.html#lookup"><span class="hs-identifier hs-var">Map.lookup</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64 -&gt; TraceKey
+</span><a href="Hydra.LogFilter.html#EventKey"><span class="hs-identifier hs-var">EventKey</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679412213"><span class="hs-identifier hs-var">eventId</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Map TraceKey [Trace tx]
+</span><a href="#local-6989586621679412185"><span class="hs-identifier hs-var">pending</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-86"></span><span>        </span><span class="annot"><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Maybe.html#Just"><span class="hs-identifier hs-type">Just</span></a></span><span> </span><span id="local-6989586621679412215"><span class="annot"><span class="annottext">[Trace tx]
+</span><a href="#local-6989586621679412215"><span class="hs-identifier hs-var">es</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-87"></span><span>          </span><span class="annot"><span class="annottext">Map TraceKey [Trace tx]
+-&gt; StateT (Map TraceKey [Trace tx]) Identity ()
+forall s (m :: * -&gt; *). MonadState s m =&gt; s -&gt; m ()
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/mtl-2.3.1/src/Control.Monad.State.Class.html#put"><span class="hs-identifier hs-var">put</span></a></span><span> </span><span class="annot"><span class="annottext">(Map TraceKey [Trace tx]
+ -&gt; StateT (Map TraceKey [Trace tx]) Identity ())
+-&gt; Map TraceKey [Trace tx]
+-&gt; StateT (Map TraceKey [Trace tx]) Identity ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">TraceKey -&gt; Map TraceKey [Trace tx] -&gt; Map TraceKey [Trace tx]
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Map k a
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/containers-0.6.7/src/Data.Map.Internal.html#delete"><span class="hs-identifier hs-var">Map.delete</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64 -&gt; TraceKey
+</span><a href="Hydra.LogFilter.html#EventKey"><span class="hs-identifier hs-var">EventKey</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679412213"><span class="hs-identifier hs-var">eventId</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Map TraceKey [Trace tx]
+</span><a href="#local-6989586621679412185"><span class="hs-identifier hs-var">pending</span></a></span><span>
+</span><span id="line-88"></span><span>          </span><span class="annot"><span class="annottext">[Trace tx] -&gt; State (Map TraceKey [Trace tx]) [Trace tx]
+forall a. a -&gt; StateT (Map TraceKey [Trace tx]) Identity a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Base.html#pure"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="annot"><span class="annottext">([Trace tx] -&gt; State (Map TraceKey [Trace tx]) [Trace tx])
+-&gt; [Trace tx] -&gt; State (Map TraceKey [Trace tx]) [Trace tx]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">(Trace tx -&gt; Trace tx) -&gt; [Trace tx] -&gt; [Trace tx]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">UTCTime -&gt; Trace tx -&gt; Trace tx
+forall tx. UTCTime -&gt; Trace tx -&gt; Trace tx
+</span><a href="#local-6989586621679412217"><span class="hs-identifier hs-var">computeDuration</span></a></span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679412211"><span class="hs-identifier hs-var">timestamp</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Trace tx]
+</span><a href="#local-6989586621679412215"><span class="hs-identifier hs-var">es</span></a></span><span>
+</span><span id="line-89"></span><span>        </span><span class="annot"><span class="annottext">Maybe [Trace tx]
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Trace tx] -&gt; State (Map TraceKey [Trace tx]) [Trace tx]
+forall a. a -&gt; StateT (Map TraceKey [Trace tx]) Identity a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Base.html#pure"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-90"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Envelope</span></span><span class="hs-special">{</span><span id="local-6989586621679412218"><span class="annot"><span class="annottext">UTCTime
+$sel:timestamp:Envelope :: forall a. Envelope a -&gt; UTCTime
+timestamp :: UTCTime
+</span><span class="hs-identifier hs-var hs-var">timestamp</span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:message:Envelope :: forall a. Envelope a -&gt; a
+</span><span class="hs-identifier hs-var">message</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Node</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">BeginEffect</span></span><span class="hs-special">{</span><span id="local-6989586621679412220"><span class="annot"><span class="annottext">Word64
+$sel:eventId:BeginEvent :: forall tx. HydraNodeLog tx -&gt; Word64
+eventId :: Word64
+</span><span class="hs-identifier hs-var hs-var">eventId</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679412221"><span class="annot"><span class="annottext">Word32
+effectId :: Word32
+$sel:effectId:BeginEvent :: forall tx. HydraNodeLog tx -&gt; Word32
+</span><a href="#local-6989586621679412221"><span class="hs-identifier hs-var hs-var">effectId</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:effect:BeginEvent :: forall tx. HydraNodeLog tx -&gt; Effect tx
+</span><span class="hs-identifier hs-var">effect</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NetworkEffect</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ReqTx</span></span><span class="hs-special">{</span><span id="local-6989586621679412225"><span class="annot"><span class="annottext">tx
+$sel:transaction:ReqTx :: forall tx. Message tx -&gt; tx
+transaction :: tx
+</span><span class="hs-identifier hs-var hs-var">transaction</span></span></span><span class="hs-special">}</span><span class="hs-special">}</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-91"></span><span>      </span><span class="annot"><span class="annottext">Map TraceKey [Trace tx]
+-&gt; StateT (Map TraceKey [Trace tx]) Identity ()
+forall s (m :: * -&gt; *). MonadState s m =&gt; s -&gt; m ()
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/mtl-2.3.1/src/Control.Monad.State.Class.html#put"><span class="hs-identifier hs-var">put</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TraceKey
+-&gt; [Trace tx] -&gt; Map TraceKey [Trace tx] -&gt; Map TraceKey [Trace tx]
+forall k a. Ord k =&gt; k -&gt; a -&gt; Map k a -&gt; Map k a
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/containers-0.6.7/src/Data.Map.Internal.html#insert"><span class="hs-identifier hs-var">Map.insert</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64 -&gt; Word32 -&gt; TraceKey
+</span><a href="Hydra.LogFilter.html#EffectKey"><span class="hs-identifier hs-var">EffectKey</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679412220"><span class="hs-identifier hs-var">eventId</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679412221"><span class="hs-identifier hs-var">effectId</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Hydra.LogFilter.html#TraceEffect"><span class="hs-identifier hs-type">TraceEffect</span></a></span><span class="hs-special">{</span><span class="annot"><span class="annottext">$sel:effect:TraceEvent :: Text
+</span><a href="Hydra.LogFilter.html#%24sel%3Aeffect%3ATraceEvent"><span class="hs-identifier hs-var">effect</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;ReqTx&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">UTCTime
+$sel:timestamp:TraceEvent :: UTCTime
+timestamp :: UTCTime
+</span><a href="Hydra.LogFilter.html#%24sel%3Atimestamp%3ATraceEvent"><span class="hs-identifier hs-var hs-var">timestamp</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:txid:TraceEvent :: TxIdType tx
+</span><a href="Hydra.LogFilter.html#%24sel%3Atxid%3ATraceEvent"><span class="hs-identifier hs-var">txid</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">tx -&gt; TxIdType tx
+forall tx. IsTx tx =&gt; tx -&gt; TxIdType tx
+</span><span class="hs-identifier hs-var">txId</span></span><span> </span><span class="annot"><span class="annottext">tx
+</span><a href="#local-6989586621679412225"><span class="hs-identifier hs-var">transaction</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:us:TraceEvent :: NominalDiffTime
+</span><a href="Hydra.LogFilter.html#%24sel%3Aus%3ATraceEvent"><span class="hs-identifier hs-var">us</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NominalDiffTime
+</span><span class="hs-number">0</span></span><span class="hs-special">}</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">Map TraceKey [Trace tx]
+</span><a href="#local-6989586621679412185"><span class="hs-identifier hs-var">pending</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>      </span><span class="annot"><span class="annottext">[Trace tx] -&gt; State (Map TraceKey [Trace tx]) [Trace tx]
+forall a. a -&gt; StateT (Map TraceKey [Trace tx]) Identity a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Base.html#pure"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-93"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Envelope</span></span><span class="hs-special">{</span><span id="local-6989586621679412226"><span class="annot"><span class="annottext">UTCTime
+$sel:timestamp:Envelope :: forall a. Envelope a -&gt; UTCTime
+timestamp :: UTCTime
+</span><span class="hs-identifier hs-var hs-var">timestamp</span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:message:Envelope :: forall a. Envelope a -&gt; a
+</span><span class="hs-identifier hs-var">message</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Node</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">BeginEffect</span></span><span class="hs-special">{</span><span id="local-6989586621679412227"><span class="annot"><span class="annottext">Word64
+$sel:eventId:BeginEvent :: forall tx. HydraNodeLog tx -&gt; Word64
+eventId :: Word64
+</span><span class="hs-identifier hs-var hs-var">eventId</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679412228"><span class="annot"><span class="annottext">Word32
+$sel:effectId:BeginEvent :: forall tx. HydraNodeLog tx -&gt; Word32
+effectId :: Word32
+</span><span class="hs-identifier hs-var hs-var">effectId</span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:effect:BeginEvent :: forall tx. HydraNodeLog tx -&gt; Effect tx
+</span><span class="hs-identifier hs-var">effect</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ClientEffect</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TxValid</span></span><span class="hs-special">{</span><span id="local-6989586621679412230"><span class="annot"><span class="annottext">tx
+transaction :: tx
+$sel:transaction:PeerConnected :: forall tx. ServerOutput tx -&gt; tx
+</span><a href="#local-6989586621679412230"><span class="hs-identifier hs-var hs-var">transaction</span></a></span></span><span class="hs-special">}</span><span class="hs-special">}</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-94"></span><span>      </span><span class="annot"><span class="annottext">Map TraceKey [Trace tx]
+-&gt; StateT (Map TraceKey [Trace tx]) Identity ()
+forall s (m :: * -&gt; *). MonadState s m =&gt; s -&gt; m ()
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/mtl-2.3.1/src/Control.Monad.State.Class.html#put"><span class="hs-identifier hs-var">put</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TraceKey
+-&gt; [Trace tx] -&gt; Map TraceKey [Trace tx] -&gt; Map TraceKey [Trace tx]
+forall k a. Ord k =&gt; k -&gt; a -&gt; Map k a -&gt; Map k a
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/containers-0.6.7/src/Data.Map.Internal.html#insert"><span class="hs-identifier hs-var">Map.insert</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64 -&gt; Word32 -&gt; TraceKey
+</span><a href="Hydra.LogFilter.html#EffectKey"><span class="hs-identifier hs-var">EffectKey</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679412227"><span class="hs-identifier hs-var">eventId</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679412228"><span class="hs-identifier hs-var">effectId</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Hydra.LogFilter.html#TraceEffect"><span class="hs-identifier hs-type">TraceEffect</span></a></span><span class="hs-special">{</span><span class="annot"><span class="annottext">$sel:effect:TraceEvent :: Text
+</span><a href="Hydra.LogFilter.html#%24sel%3Aeffect%3ATraceEvent"><span class="hs-identifier hs-var">effect</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;TxValid&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">UTCTime
+$sel:timestamp:TraceEvent :: UTCTime
+timestamp :: UTCTime
+</span><a href="Hydra.LogFilter.html#%24sel%3Atimestamp%3ATraceEvent"><span class="hs-identifier hs-var hs-var">timestamp</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:txid:TraceEvent :: TxIdType tx
+</span><a href="Hydra.LogFilter.html#%24sel%3Atxid%3ATraceEvent"><span class="hs-identifier hs-var">txid</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">tx -&gt; TxIdType tx
+forall tx. IsTx tx =&gt; tx -&gt; TxIdType tx
+</span><span class="hs-identifier hs-var">txId</span></span><span> </span><span class="annot"><span class="annottext">tx
+</span><a href="#local-6989586621679412230"><span class="hs-identifier hs-var">transaction</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:us:TraceEvent :: NominalDiffTime
+</span><a href="Hydra.LogFilter.html#%24sel%3Aus%3ATraceEvent"><span class="hs-identifier hs-var">us</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NominalDiffTime
+</span><span class="hs-number">0</span></span><span class="hs-special">}</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">Map TraceKey [Trace tx]
+</span><a href="#local-6989586621679412185"><span class="hs-identifier hs-var">pending</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-95"></span><span>      </span><span class="annot"><span class="annottext">[Trace tx] -&gt; State (Map TraceKey [Trace tx]) [Trace tx]
+forall a. a -&gt; StateT (Map TraceKey [Trace tx]) Identity a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Base.html#pure"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-96"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Envelope</span></span><span class="hs-special">{</span><span id="local-6989586621679412232"><span class="annot"><span class="annottext">UTCTime
+$sel:timestamp:Envelope :: forall a. Envelope a -&gt; UTCTime
+timestamp :: UTCTime
+</span><span class="hs-identifier hs-var hs-var">timestamp</span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:message:Envelope :: forall a. Envelope a -&gt; a
+</span><span class="hs-identifier hs-var">message</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Node</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">BeginEffect</span></span><span class="hs-special">{</span><span id="local-6989586621679412233"><span class="annot"><span class="annottext">Word64
+$sel:eventId:BeginEvent :: forall tx. HydraNodeLog tx -&gt; Word64
+eventId :: Word64
+</span><span class="hs-identifier hs-var hs-var">eventId</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679412234"><span class="annot"><span class="annottext">Word32
+$sel:effectId:BeginEvent :: forall tx. HydraNodeLog tx -&gt; Word32
+effectId :: Word32
+</span><span class="hs-identifier hs-var hs-var">effectId</span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:effect:BeginEvent :: forall tx. HydraNodeLog tx -&gt; Effect tx
+</span><span class="hs-identifier hs-var">effect</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ClientEffect</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SnapshotConfirmed</span></span><span class="hs-special">{</span><span class="annot"><span class="annottext">$sel:snapshot:PeerConnected :: forall tx. ServerOutput tx -&gt; Snapshot tx
+</span><span class="hs-identifier hs-var">snapshot</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Snapshot</span></span><span class="hs-special">{</span><span id="local-6989586621679412237"><span class="annot"><span class="annottext">[TxIdType tx]
+confirmed :: [TxIdType tx]
+$sel:confirmed:Snapshot :: forall tx. Snapshot tx -&gt; [TxIdType tx]
+</span><a href="#local-6989586621679412237"><span class="hs-identifier hs-var hs-var">confirmed</span></a></span></span><span class="hs-special">}</span><span class="hs-special">}</span><span class="hs-special">}</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-97"></span><span>      </span><span class="annot"><span class="annottext">Map TraceKey [Trace tx]
+-&gt; StateT (Map TraceKey [Trace tx]) Identity ()
+forall s (m :: * -&gt; *). MonadState s m =&gt; s -&gt; m ()
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/mtl-2.3.1/src/Control.Monad.State.Class.html#put"><span class="hs-identifier hs-var">put</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TraceKey
+-&gt; [Trace tx] -&gt; Map TraceKey [Trace tx] -&gt; Map TraceKey [Trace tx]
+forall k a. Ord k =&gt; k -&gt; a -&gt; Map k a -&gt; Map k a
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/containers-0.6.7/src/Data.Map.Internal.html#insert"><span class="hs-identifier hs-var">Map.insert</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64 -&gt; Word32 -&gt; TraceKey
+</span><a href="Hydra.LogFilter.html#EffectKey"><span class="hs-identifier hs-var">EffectKey</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679412233"><span class="hs-identifier hs-var">eventId</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679412234"><span class="hs-identifier hs-var">effectId</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(TxIdType tx -&gt; Trace tx) -&gt; [TxIdType tx] -&gt; [Trace tx]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679412239"><span class="annot"><span class="annottext">TxIdType tx
+</span><a href="#local-6989586621679412239"><span class="hs-identifier hs-var">txid</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Hydra.LogFilter.html#TraceEffect"><span class="hs-identifier hs-type">TraceEffect</span></a></span><span class="hs-special">{</span><span class="annot"><span class="annottext">$sel:effect:TraceEvent :: Text
+</span><a href="Hydra.LogFilter.html#%24sel%3Aeffect%3ATraceEvent"><span class="hs-identifier hs-var">effect</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;SnapshotConfirmed&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">UTCTime
+$sel:timestamp:TraceEvent :: UTCTime
+timestamp :: UTCTime
+</span><a href="Hydra.LogFilter.html#%24sel%3Atimestamp%3ATraceEvent"><span class="hs-identifier hs-var hs-var">timestamp</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">TxIdType tx
+$sel:txid:TraceEvent :: TxIdType tx
+txid :: TxIdType tx
+</span><a href="Hydra.LogFilter.html#%24sel%3Atxid%3ATraceEvent"><span class="hs-identifier hs-var hs-var">txid</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:us:TraceEvent :: NominalDiffTime
+</span><a href="Hydra.LogFilter.html#%24sel%3Aus%3ATraceEvent"><span class="hs-identifier hs-var">us</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NominalDiffTime
+</span><span class="hs-number">0</span></span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[TxIdType tx]
+</span><a href="#local-6989586621679412237"><span class="hs-identifier hs-var">confirmed</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Map TraceKey [Trace tx]
+</span><a href="#local-6989586621679412185"><span class="hs-identifier hs-var">pending</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-98"></span><span>      </span><span class="annot"><span class="annottext">[Trace tx] -&gt; State (Map TraceKey [Trace tx]) [Trace tx]
+forall a. a -&gt; StateT (Map TraceKey [Trace tx]) Identity a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Base.html#pure"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-99"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Envelope</span></span><span class="hs-special">{</span><span id="local-6989586621679412240"><span class="annot"><span class="annottext">UTCTime
+$sel:timestamp:Envelope :: forall a. Envelope a -&gt; UTCTime
+timestamp :: UTCTime
+</span><span class="hs-identifier hs-var hs-var">timestamp</span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:message:Envelope :: forall a. Envelope a -&gt; a
+</span><span class="hs-identifier hs-var">message</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Node</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">EndEffect</span></span><span class="hs-special">{</span><span id="local-6989586621679412242"><span class="annot"><span class="annottext">Word64
+$sel:eventId:BeginEvent :: forall tx. HydraNodeLog tx -&gt; Word64
+eventId :: Word64
+</span><span class="hs-identifier hs-var hs-var">eventId</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679412243"><span class="annot"><span class="annottext">Word32
+$sel:effectId:BeginEvent :: forall tx. HydraNodeLog tx -&gt; Word32
+effectId :: Word32
+</span><span class="hs-identifier hs-var hs-var">effectId</span></span></span><span class="hs-special">}</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-100"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">TraceKey -&gt; Map TraceKey [Trace tx] -&gt; Maybe [Trace tx]
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Maybe a
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/containers-0.6.7/src/Data.Map.Internal.html#lookup"><span class="hs-identifier hs-var">Map.lookup</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64 -&gt; Word32 -&gt; TraceKey
+</span><a href="Hydra.LogFilter.html#EffectKey"><span class="hs-identifier hs-var">EffectKey</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679412242"><span class="hs-identifier hs-var">eventId</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679412243"><span class="hs-identifier hs-var">effectId</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Map TraceKey [Trace tx]
+</span><a href="#local-6989586621679412185"><span class="hs-identifier hs-var">pending</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-101"></span><span>        </span><span class="annot"><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Maybe.html#Just"><span class="hs-identifier hs-type">Just</span></a></span><span> </span><span id="local-6989586621679412244"><span class="annot"><span class="annottext">[Trace tx]
+</span><a href="#local-6989586621679412244"><span class="hs-identifier hs-var">es</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-102"></span><span>          </span><span class="annot"><span class="annottext">Map TraceKey [Trace tx]
+-&gt; StateT (Map TraceKey [Trace tx]) Identity ()
+forall s (m :: * -&gt; *). MonadState s m =&gt; s -&gt; m ()
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/mtl-2.3.1/src/Control.Monad.State.Class.html#put"><span class="hs-identifier hs-var">put</span></a></span><span> </span><span class="annot"><span class="annottext">(Map TraceKey [Trace tx]
+ -&gt; StateT (Map TraceKey [Trace tx]) Identity ())
+-&gt; Map TraceKey [Trace tx]
+-&gt; StateT (Map TraceKey [Trace tx]) Identity ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">TraceKey -&gt; Map TraceKey [Trace tx] -&gt; Map TraceKey [Trace tx]
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Map k a
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/containers-0.6.7/src/Data.Map.Internal.html#delete"><span class="hs-identifier hs-var">Map.delete</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64 -&gt; Word32 -&gt; TraceKey
+</span><a href="Hydra.LogFilter.html#EffectKey"><span class="hs-identifier hs-var">EffectKey</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679412242"><span class="hs-identifier hs-var">eventId</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679412243"><span class="hs-identifier hs-var">effectId</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Map TraceKey [Trace tx]
+</span><a href="#local-6989586621679412185"><span class="hs-identifier hs-var">pending</span></a></span><span>
+</span><span id="line-103"></span><span>          </span><span class="annot"><span class="annottext">[Trace tx] -&gt; State (Map TraceKey [Trace tx]) [Trace tx]
+forall a. a -&gt; StateT (Map TraceKey [Trace tx]) Identity a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Base.html#pure"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="annot"><span class="annottext">([Trace tx] -&gt; State (Map TraceKey [Trace tx]) [Trace tx])
+-&gt; [Trace tx] -&gt; State (Map TraceKey [Trace tx]) [Trace tx]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">(Trace tx -&gt; Trace tx) -&gt; [Trace tx] -&gt; [Trace tx]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Base.html#fmap"><span class="hs-identifier hs-var">fmap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">UTCTime -&gt; Trace tx -&gt; Trace tx
+forall tx. UTCTime -&gt; Trace tx -&gt; Trace tx
+</span><a href="#local-6989586621679412217"><span class="hs-identifier hs-var">computeDuration</span></a></span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679412240"><span class="hs-identifier hs-var">timestamp</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Trace tx]
+</span><a href="#local-6989586621679412244"><span class="hs-identifier hs-var">es</span></a></span><span>
+</span><span id="line-104"></span><span>        </span><span class="annot"><span class="annottext">Maybe [Trace tx]
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Trace tx] -&gt; State (Map TraceKey [Trace tx]) [Trace tx]
+forall a. a -&gt; StateT (Map TraceKey [Trace tx]) Identity a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Base.html#pure"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-105"></span><span>    </span><span class="annot"><span class="annottext">Envelope (HydraLog tx (Message tx))
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Trace tx] -&gt; State (Map TraceKey [Trace tx]) [Trace tx]
+forall a. a -&gt; StateT (Map TraceKey [Trace tx]) Identity a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Base.html#pure"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-106"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-107"></span><span>  </span><span id="local-6989586621679411760"><span class="annot"><a href="#local-6989586621679412217"><span class="hs-identifier hs-type">computeDuration</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/time-1.12.2/src/Data.Time.Clock.Internal.UTCTime.html#UTCTime"><span class="hs-identifier hs-type">UTCTime</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Hydra.LogFilter.html#Trace"><span class="hs-identifier hs-type">Trace</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679411760"><span class="hs-identifier hs-type">tx</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Hydra.LogFilter.html#Trace"><span class="hs-identifier hs-type">Trace</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679411760"><span class="hs-identifier hs-type">tx</span></a></span></span><span>
+</span><span id="line-108"></span><span>  </span><span id="local-6989586621679412217"><span class="annot"><span class="annottext">computeDuration :: forall tx. UTCTime -&gt; Trace tx -&gt; Trace tx
+</span><a href="#local-6989586621679412217"><span class="hs-identifier hs-var hs-var">computeDuration</span></a></span></span><span> </span><span id="local-6989586621679412249"><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679412249"><span class="hs-identifier hs-var">endTime</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-109"></span><span>    </span><span id="local-6989586621679412250"><span class="annot"><span class="annottext">e :: Trace tx
+</span><a href="#local-6989586621679412250"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Hydra.LogFilter.html#TraceEvent"><span class="hs-identifier hs-type">TraceEvent</span></a></span><span class="hs-special">{</span><span class="annot"><span class="annottext">$sel:timestamp:TraceEvent :: forall tx. Trace tx -&gt; UTCTime
+</span><a href="Hydra.LogFilter.html#%24sel%3Atimestamp%3ATraceEvent"><span class="hs-identifier hs-var">timestamp</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621679412251"><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679412251"><span class="hs-identifier hs-var">startTime</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Trace tx
+</span><a href="#local-6989586621679412250"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">{</span><span class="annot"><a href="Hydra.LogFilter.html#%24sel%3Aus%3ATraceEvent"><span class="hs-identifier hs-var">us</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">1_000_000</span></span><span> </span><span class="annot"><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Num.html#%2A"><span class="hs-operator hs-type">*</span></a></span><span> </span><span class="annot"><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/time-1.12.2/src/Data.Time.Clock.Internal.UTCDiff.html#diffUTCTime"><span class="hs-identifier hs-type">diffUTCTime</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679412249"><span class="hs-identifier hs-type">endTime</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679412251"><span class="hs-identifier hs-type">startTime</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-110"></span><span>    </span><span id="local-6989586621679412254"><span class="annot"><span class="annottext">e :: Trace tx
+</span><a href="#local-6989586621679412254"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Hydra.LogFilter.html#TraceEffect"><span class="hs-identifier hs-type">TraceEffect</span></a></span><span class="hs-special">{</span><span class="annot"><span class="annottext">$sel:timestamp:TraceEvent :: forall tx. Trace tx -&gt; UTCTime
+</span><a href="Hydra.LogFilter.html#%24sel%3Atimestamp%3ATraceEvent"><span class="hs-identifier hs-var">timestamp</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621679412255"><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679412255"><span class="hs-identifier hs-var">startTime</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Trace tx
+</span><a href="#local-6989586621679412254"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">{</span><span class="annot"><a href="Hydra.LogFilter.html#%24sel%3Aus%3ATraceEvent"><span class="hs-identifier hs-var">us</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">1_000_000</span></span><span> </span><span class="annot"><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/base-4.18.1.0/src/GHC.Num.html#%2A"><span class="hs-operator hs-type">*</span></a></span><span> </span><span class="annot"><a href="file:///nix/store/g7is9c8iy7mij0yvra8lrlqi9y5mmkkj-ghc-9.6.3-doc/share/doc/ghc-9.6.3/html/libraries/time-1.12.2/src/Data.Time.Clock.Internal.UTCDiff.html#diffUTCTime"><span class="hs-identifier hs-type">diffUTCTime</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679412249"><span class="hs-identifier hs-type">endTime</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679412255"><span class="hs-identifier hs-type">startTime</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-111"></span></pre></body></html>

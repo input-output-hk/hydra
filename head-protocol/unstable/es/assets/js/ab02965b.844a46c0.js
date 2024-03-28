@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkhydra_head_protocol_docs=self.webpackChunkhydra_head_protocol_docs||[]).push([[7681],{82347:o=>{o.exports=JSON.parse('{"name":"docusaurus-plugin-content-docs","id":"core-concepts"}')}}]);

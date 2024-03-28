@@ -1,0 +1,38 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Hydra.Cardano.Api.Lovelace</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Hydra.Cardano.Api.Prelude.html"><span class="hs-identifier">Hydra.Cardano.Api.Prelude</span></a></span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Cardano.Ledger.Coin</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Ledger</span></span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="annot"><span class="hs-comment">-- * Extras</span></span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="annot"><span class="hs-comment">-- | Directly retrieve the amount of 'Lovelace' stored in a 'TxOut'.</span></span><span>
+</span><span id="line-10"></span><span id="local-6989586621679266398"><span id="local-6989586621679266399"><span class="annot"><a href="Hydra.Cardano.Api.Lovelace.html#txOutLovelace"><span class="hs-identifier hs-type">txOutLovelace</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TxOut</span></span><span> </span><span class="annot"><a href="#local-6989586621679266398"><span class="hs-identifier hs-type">ctx</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679266399"><span class="hs-identifier hs-type">era</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Lovelace</span></span></span></span><span>
+</span><span id="line-11"></span><span id="txOutLovelace"><span class="annot"><span class="annottext">txOutLovelace :: forall ctx era. TxOut ctx era -&gt; Lovelace
+</span><a href="Hydra.Cardano.Api.Lovelace.html#txOutLovelace"><span class="hs-identifier hs-var hs-var">txOutLovelace</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TxOut</span></span><span> </span><span class="annot"><span class="annottext">AddressInEra era
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679266413"><span class="annot"><span class="annottext">TxOutValue era
+</span><a href="#local-6989586621679266413"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="annot"><span class="annottext">TxOutDatum ctx era
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">ReferenceScript era
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TxOutValue era -&gt; Lovelace
+forall era. TxOutValue era -&gt; Lovelace
+</span><span class="hs-identifier hs-var">txOutValueToLovelace</span></span><span> </span><span class="annot"><span class="annottext">TxOutValue era
+</span><a href="#local-6989586621679266413"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="annot"><span class="hs-comment">-- * Type Conversions</span></span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="annot"><span class="hs-comment">-- | Convert a cardano-ledger's 'Coin' into a cardano-api 'Lovelace'.</span></span><span>
+</span><span id="line-16"></span><span class="annot"><a href="Hydra.Cardano.Api.Lovelace.html#fromLedgerCoin"><span class="hs-identifier hs-type">fromLedgerCoin</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ledger.Coin</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Lovelace</span></span><span>
+</span><span id="line-17"></span><span id="fromLedgerCoin"><span class="annot"><span class="annottext">fromLedgerCoin :: Coin -&gt; Lovelace
+</span><a href="Hydra.Cardano.Api.Lovelace.html#fromLedgerCoin"><span class="hs-identifier hs-var hs-var">fromLedgerCoin</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ledger.Coin</span></span><span> </span><span id="local-6989586621679266417"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679266417"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Lovelace
+</span><span class="hs-identifier hs-var">Lovelace</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679266417"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="annot"><span class="hs-comment">-- | Convert a cardano-api 'Lovelace' into a cardano-ledger 'Coin'.</span></span><span>
+</span><span id="line-20"></span><span class="annot"><a href="Hydra.Cardano.Api.Lovelace.html#toLedgerCoin"><span class="hs-identifier hs-type">toLedgerCoin</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Lovelace</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ledger.Coin</span></span><span>
+</span><span id="line-21"></span><span id="toLedgerCoin"><span class="annot"><span class="annottext">toLedgerCoin :: Lovelace -&gt; Coin
+</span><a href="Hydra.Cardano.Api.Lovelace.html#toLedgerCoin"><span class="hs-identifier hs-var hs-var">toLedgerCoin</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Lovelace</span></span><span> </span><span id="local-6989586621679266419"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679266419"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Coin
+</span><span class="hs-identifier hs-var">Ledger.Coin</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679266419"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-22"></span></pre></body></html>
