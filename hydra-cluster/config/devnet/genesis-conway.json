@@ -34,6 +34,8 @@
   "committee": {
     "members": {
     },
-    "quorum": 0
-  }
+    "quorum": 0,
+    "threshold": 0
+  },
+  "minFeeRefScriptCostPerByte": 44
 }
