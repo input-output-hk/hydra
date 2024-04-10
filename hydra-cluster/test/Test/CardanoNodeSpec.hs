@@ -49,6 +49,7 @@ spec = do
           findRunningCardanoNode tr tmp Preview `shouldReturn` Just runningNode
 
   forEachKnownNetwork "withCardanoNodeOnKnownNetwork starts synchronizing within 10 seconds" $ \network -> do
+    pendingWith "cardano-node 8.10.0 not yet supported on any public network"
     -- NOTE: This implies that withCardanoNodeOnKnownNetwork does not
     -- synchronize the whole chain before continuing.
     setupTracerAndTempDir $ \(tr, tmp) ->
