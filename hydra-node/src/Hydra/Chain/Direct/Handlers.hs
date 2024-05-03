@@ -14,6 +14,7 @@ import Cardano.Slotting.Slot (SlotNo (..))
 import Control.Concurrent.Class.MonadSTM (modifyTVar, newTVarIO, writeTVar)
 import Control.Monad.Class.MonadSTM (throwSTM)
 import Data.Map.Strict qualified as Map
+import Debug.Trace (traceM)
 import Hydra.Cardano.Api (
   BlockHeader,
   ChainPoint (..),
@@ -26,6 +27,7 @@ import Hydra.Cardano.Api (
   getTxId,
   txIns',
  )
+import Hydra.Cardano.Api.Pretty (renderTxWithUTxO)
 import Hydra.Chain (
   Chain (..),
   ChainCallback,
@@ -206,7 +208,8 @@ finalizeTx TinyWallet{sign, coverFee} ctx utxo userUTxO partialTx = do
       throwIO (NoFuelUTXOFound :: PostTxError Tx)
     Left ErrNotEnoughFunds{} ->
       throwIO (NotEnoughFuel :: PostTxError Tx)
-    Left ErrScriptExecutionFailed{scriptFailure = (redeemerPtr, scriptFailure)} ->
+    Left ErrScriptExecutionFailed{scriptFailure = (redeemerPtr, scriptFailure)} -> do
+      traceM $ "Script execution failed: " <> renderTxWithUTxO headUTxO partialTx
       throwIO
         ( ScriptFailedInWallet
             { redeemerPtr = show redeemerPtr
