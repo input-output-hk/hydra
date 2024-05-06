@@ -37,8 +37,7 @@ import Data.Maybe.Strict (StrictMaybe (..))
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Hydra.Cardano.Api.Pretty (renderTx, renderTxWithUTxO)
-import Hydra.Chain (CommitBlueprintTx (..), HeadParameters (..))
-import Hydra.Chain.Direct.Contract.Commit (commitSigningKey, healthyInitialTxIn, healthyInitialTxOut)
+import Hydra.Chain (CommitBlueprintTx (..), HeadParameters (..), maximumNumberOfParties)
 import Hydra.Chain.Direct.Fixture (
   epochInfo,
   pparams,
@@ -47,15 +46,13 @@ import Hydra.Chain.Direct.Fixture (
   testPolicyId,
   testSeedInput,
  )
-import Hydra.Chain.Direct.Fixture qualified as Fixture
 import Hydra.Chain.Direct.ScriptRegistry (genScriptRegistry, registryUTxO)
-import Hydra.Chain.Direct.State (ChainContext (..), HasKnownUTxO (getKnownUTxO), genChainStateWithTx)
+import Hydra.Chain.Direct.State (HasKnownUTxO (getKnownUTxO), InitialState (..), commit', genChainStateWithTx, genHydraContext, genStInitial)
 import Hydra.Chain.Direct.State qualified as Transition
 import Hydra.Chain.Direct.Tx (
   HeadObservation (..),
   InitObservation (..),
   abortTx,
-  commitTx,
   currencySymbolToHeadId,
   headIdToCurrencySymbol,
   headIdToPolicyId,
@@ -112,6 +109,7 @@ import Test.QuickCheck (
  )
 import Test.QuickCheck.Instances.Semigroup ()
 import Test.QuickCheck.Monadic (monadicIO)
+import Text.Pretty.Simple (pShow)
 
 spec :: Spec
 spec =
@@ -205,52 +203,43 @@ spec =
       prop "genBlueprintTx generates interesting txs" prop_interestingBlueprintTx
 
       prop "Validate blueprint and commit transactions" $ do
-        forAllBlind arbitrary $ \chainContext -> do
-          let ChainContext{networkId, ownVerificationKey, ownParty, scriptRegistry} =
-                chainContext{ownVerificationKey = getVerificationKey commitSigningKey, networkId = testNetworkId}
-          forAllBlind genBlueprintTxWithUTxO $ \(lookupUTxO, blueprintTx) ->
-            counterexample ("Blueprint tx: " <> renderTxWithUTxO lookupUTxO blueprintTx) $ do
-              let createdTx =
-                    commitTx
-                      networkId
-                      scriptRegistry
-                      (mkHeadId Fixture.testPolicyId)
-                      ownParty
-                      CommitBlueprintTx{lookupUTxO, blueprintTx}
-                      (healthyInitialTxIn, toUTxOContext healthyInitialTxOut, verificationKeyHash ownVerificationKey)
-              counterexample ("\n\n\nCommit tx: " <> renderTxWithUTxO lookupUTxO createdTx) $ do
-                let blueprintBody = toLedgerTx blueprintTx ^. bodyTxL
-                let commitTxBody = toLedgerTx createdTx ^. bodyTxL
-                let spendableUTxO =
-                      UTxO.singleton (healthyInitialTxIn, toUTxOContext healthyInitialTxOut)
-                        <> lookupUTxO
-                        <> registryUTxO scriptRegistry
+        forAllBlind (genHydraContext maximumNumberOfParties) $ \hctx ->
+          forAllBlind (genStInitial hctx) $ \(ctx, stInitial@InitialState{headId}) ->
+            forAllBlind genBlueprintTxWithUTxO $ \(lookupUTxO, blueprintTx) ->
+              counterexample ("Blueprint tx: " <> renderTxWithUTxO lookupUTxO blueprintTx) $ do
+                let spendableUTxO = getKnownUTxO stInitial <> lookupUTxO <> getKnownUTxO ctx
+                case commit' ctx headId spendableUTxO CommitBlueprintTx{lookupUTxO, blueprintTx} of
+                  Left err -> property False & counterexample ("Failed to construct commit: " <> toString (pShow err))
+                  Right commitTx ->
+                    counterexample ("\n\n\nCommit tx: " <> renderTxWithUTxO lookupUTxO commitTx) $ do
+                      let blueprintBody = toLedgerTx blueprintTx ^. bodyTxL
+                      let commitTxBody = toLedgerTx commitTx ^. bodyTxL
 
-                conjoin
-                  [ propTransactionEvaluates (blueprintTx, lookupUTxO)
-                      & counterexample "Blueprint transaction failed to evaluate"
-                  , propTransactionEvaluates (createdTx, spendableUTxO)
-                      & counterexample "Commit transaction failed to evaluate"
-                  , conjoin
-                      [ getAuxMetadata blueprintTx `propIsSubmapOf` getAuxMetadata createdTx
-                          & counterexample "Blueprint metadata incomplete"
-                      , propHasValidAuxData blueprintTx
-                          & counterexample "Blueprint tx has invalid aux data"
-                      , propHasValidAuxData createdTx
-                          & counterexample "Commit tx has invalid aux data"
-                      ]
-                  , blueprintBody ^. vldtTxBodyL === commitTxBody ^. vldtTxBodyL
-                      & counterexample "Validity range mismatch"
-                  , (blueprintBody ^. inputsTxBodyL) `propIsSubsetOf` (commitTxBody ^. inputsTxBodyL)
-                      & counterexample "Blueprint inputs missing"
-                  , property
-                      ((`all` (blueprintBody ^. outputsTxBodyL)) (`notElem` (commitTxBody ^. outputsTxBodyL)))
-                      & counterexample "Blueprint outputs not discarded"
-                  , (blueprintBody ^. reqSignerHashesTxBodyL) `propIsSubsetOf` (commitTxBody ^. reqSignerHashesTxBodyL)
-                      & counterexample "Blueprint required signatures missing"
-                  , (blueprintBody ^. referenceInputsTxBodyL) `propIsSubsetOf` (commitTxBody ^. referenceInputsTxBodyL)
-                      & counterexample "Blueprint reference inputs missing"
-                  ]
+                      conjoin
+                        [ propTransactionEvaluates (blueprintTx, lookupUTxO)
+                            & counterexample "Blueprint transaction failed to evaluate"
+                        , propTransactionEvaluates (commitTx, spendableUTxO)
+                            & counterexample "Commit transaction failed to evaluate"
+                        , conjoin
+                            [ getAuxMetadata blueprintTx `propIsSubmapOf` getAuxMetadata commitTx
+                                & counterexample "Blueprint metadata incomplete"
+                            , propHasValidAuxData blueprintTx
+                                & counterexample "Blueprint tx has invalid aux data"
+                            , propHasValidAuxData commitTx
+                                & counterexample "Commit tx has invalid aux data"
+                            ]
+                        , blueprintBody ^. vldtTxBodyL === commitTxBody ^. vldtTxBodyL
+                            & counterexample "Validity range mismatch"
+                        , (blueprintBody ^. inputsTxBodyL) `propIsSubsetOf` (commitTxBody ^. inputsTxBodyL)
+                            & counterexample "Blueprint inputs missing"
+                        , property
+                            ((`all` (blueprintBody ^. outputsTxBodyL)) (`notElem` (commitTxBody ^. outputsTxBodyL)))
+                            & counterexample "Blueprint outputs not discarded"
+                        , (blueprintBody ^. reqSignerHashesTxBodyL) `propIsSubsetOf` (commitTxBody ^. reqSignerHashesTxBodyL)
+                            & counterexample "Blueprint required signatures missing"
+                        , (blueprintBody ^. referenceInputsTxBodyL) `propIsSubsetOf` (commitTxBody ^. referenceInputsTxBodyL)
+                            & counterexample "Blueprint reference inputs missing"
+                        ]
 
 -- | Check auxiliary data of a transaction against 'pparams' and whether the aux
 -- data hash is consistent.
