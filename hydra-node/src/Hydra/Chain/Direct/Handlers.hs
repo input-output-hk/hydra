@@ -76,6 +76,7 @@ import Hydra.Chain.Direct.Wallet (
   TinyWalletLog,
  )
 import Hydra.ContestationPeriod (toNominalDiffTime)
+import Hydra.HeadId (HeadId)
 import Hydra.Ledger (ChainSlot (ChainSlot), UTxOType)
 import Hydra.Ledger.Cardano (adjustUTxO)
 import Hydra.Logging (Tracer, traceWith)
@@ -148,7 +149,7 @@ mkChain ::
   LocalChainState m Tx ->
   SubmitTx m ->
   Chain Tx m
-mkChain tracer queryTimeHandle wallet@TinyWallet{getUTxO} ctx LocalChainState{getLatest} submitTx =
+mkChain tracer queryTimeHandle wallet ctx LocalChainState{getLatest} submitTx =
   Chain
     { postTx = \tx -> do
         ChainStateAt{spendableUTxO} <- atomically getLatest
@@ -158,25 +159,36 @@ mkChain tracer queryTimeHandle wallet@TinyWallet{getUTxO} ctx LocalChainState{ge
           atomically (prepareTxToPost timeHandle wallet ctx spendableUTxO tx)
             >>= finalizeTx wallet ctx spendableUTxO mempty
         submitTx vtx
-    , -- Handle that creates a draft commit tx using the user utxo and a _blueprint_ transaction.
-      -- Possible errors are handled at the api server level.
-      draftCommitTx = \headId commitBlueprintTx -> do
+    , draftCommitTx = \headId commitBlueprintTx -> do
         ChainStateAt{spendableUTxO} <- atomically getLatest
-        walletUtxos <- atomically getUTxO
-        let walletTxIns = fromLedgerTxIn <$> Map.keys walletUtxos
-        let CommitBlueprintTx{lookupUTxO, blueprintTx} = commitBlueprintTx
-        let userTxIns = txIns' blueprintTx
-        let matchedWalletUtxo = filter (`elem` walletTxIns) userTxIns
-        -- prevent trying to spend internal wallet's utxo
-        if null matchedWalletUtxo
-          then
-            traverse (finalizeTx wallet ctx spendableUTxO lookupUTxO) $
-              commit' ctx headId spendableUTxO commitBlueprintTx
-          else pure $ Left SpendingNodeUtxoForbidden
-    , -- Submit a cardano transaction to the cardano-node using the
-      -- LocalTxSubmission protocol.
-      submitTx
+        draftCommitTx_ wallet ctx spendableUTxO headId commitBlueprintTx
+    , submitTx
     }
+
+draftCommitTx_ ::
+  (MonadSTM m, MonadThrow m) =>
+  TinyWallet m ->
+  ChainContext ->
+  UTxOType Tx ->
+  HeadId ->
+  CommitBlueprintTx Tx ->
+  m (Either (PostTxError Tx) Tx)
+draftCommitTx_ wallet ctx spendableUTxO headId commitBlueprintTx = do
+  walletUtxos <- atomically getUTxO
+  let walletTxIns = fromLedgerTxIn <$> Map.keys walletUtxos
+  let matchedWalletUtxo = filter (`elem` walletTxIns) userTxIns
+  -- prevent trying to spend internal wallet's utxo
+  if null matchedWalletUtxo
+    then
+      traverse (finalizeTx wallet ctx spendableUTxO lookupUTxO) $
+        commit' ctx headId spendableUTxO commitBlueprintTx
+    else pure $ Left SpendingNodeUtxoForbidden
+ where
+  TinyWallet{getUTxO} = wallet
+
+  userTxIns = txIns' blueprintTx
+
+  CommitBlueprintTx{lookupUTxO, blueprintTx} = commitBlueprintTx
 
 -- | Balance and sign the given partial transaction.
 finalizeTx ::
