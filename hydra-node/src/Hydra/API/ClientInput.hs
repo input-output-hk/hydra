@@ -14,6 +14,7 @@ data ClientInput tx
   | Close
   | Contest
   | Fanout
+  | Reset
   deriving stock (Generic)
 
 deriving stock instance IsTx tx => Eq (ClientInput tx)
@@ -35,3 +36,4 @@ instance Arbitrary tx => Arbitrary (ClientInput tx) where
     Close -> []
     Contest -> []
     Fanout -> []
+    Reset -> []

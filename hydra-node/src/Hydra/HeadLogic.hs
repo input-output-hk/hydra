@@ -700,6 +700,8 @@ update ::
 update env ledger st ev = case (st, ev) of
   (_, NetworkInput _ (ConnectivityEvent conn)) ->
     onConnectionEvent conn
+  (Open{}, ClientInput Reset) ->
+    newState HeadReset
   (Idle _, ClientInput Init) ->
     onIdleClientInit env
   (Idle _, ChainInput Observation{observedTx = OnInitTx{headId, headSeed, headParameters, participants}, newChainState}) ->
@@ -779,6 +781,23 @@ update env ledger st ev = case (st, ev) of
 -- | Reflect 'StateChanged' events onto the 'HeadState' aggregate.
 aggregate :: IsChainState tx => HeadState tx -> StateChanged tx -> HeadState tx
 aggregate st = \case
+  HeadReset ->
+    case st of
+      Open os@OpenState{coordinatedHeadState} ->
+        Open
+          os
+            { coordinatedHeadState =
+                coordinatedHeadState
+                  { seenSnapshot = LastSeenSnapshot lastSeen
+                  , localTxs = []
+                  , localUTxO = confirmedUTxO
+                  }
+            }
+       where
+        Snapshot{utxo = confirmedUTxO, number = lastSeen} = getSnapshot confirmedSnapshot
+
+        CoordinatedHeadState{confirmedSnapshot} = coordinatedHeadState
+      _otherState -> st
   HeadInitialized{parameters = parameters@HeadParameters{parties}, headId, headSeed, chainState} ->
     Initial
       InitialState
@@ -1021,6 +1040,7 @@ recoverChainStateHistory initialChainState =
     ChainRolledBack{chainState} ->
       rollbackHistory (chainStateSlot chainState) history
     TickObserved{} -> history
+    HeadReset -> history
 
 recoverState ::
   (Foldable t, IsChainState tx) =>
