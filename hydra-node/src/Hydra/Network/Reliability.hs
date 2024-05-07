@@ -80,7 +80,7 @@
 -- become a problem, this can be mitigated by closing and reopening a head.
 module Hydra.Network.Reliability where
 
-import Hydra.Prelude hiding (empty, fromList, length, replicate, zipWith)
+import Hydra.Prelude hiding (empty, fromList, replicate, zipWith)
 
 import Cardano.Binary (serialize')
 import Cardano.Crypto.Util (SignableRepresentation (getSignableRepresentation))
@@ -95,13 +95,12 @@ import Control.Concurrent.Class.MonadSTM (
 import Control.Tracer (Tracer)
 import Data.IntMap qualified as IMap
 import Data.Sequence.Strict ((|>))
-import Data.Sequence.Strict qualified as Seq
+import Data.Vector qualified as Vector
 import Data.Vector (
   Vector,
   elemIndex,
   fromList,
   generate,
-  length,
   replicate,
   zipWith,
   (!?),
@@ -216,8 +215,6 @@ withReliability ::
   (MonadThrow (STM m), MonadThrow m, MonadAsync m) =>
   -- | Tracer for logging messages.
   Tracer m ReliabilityLog ->
-  -- | Our persistence handle
-  MessagePersistence m outbound ->
   -- | Our own party identifier.
   Party ->
   -- | Other parties' identifiers.
@@ -225,9 +222,9 @@ withReliability ::
   -- | Underlying network component providing consuming and sending channels.
   NetworkComponent m (Authenticated (ReliableMsg (Heartbeat inbound))) (ReliableMsg (Heartbeat outbound)) a ->
   NetworkComponent m (Authenticated (Heartbeat inbound)) (Heartbeat outbound) a
-withReliability tracer MessagePersistence{saveAcks, loadAcks, appendMessage, loadMessages} me otherParties withRawNetwork callback action = do
-  acksCache <- loadAcks >>= newTVarIO
-  sentMessages <- loadMessages >>= newTVarIO . Seq.fromList
+withReliability tracer me otherParties withRawNetwork callback action = do
+  acksCache <- newTVarIO (Vector.replicate (length (me : otherParties)) 0)
+  sentMessages <- newTVarIO mempty
   resendQ <- newTQueueIO
   let ourIndex = fromMaybe (error "This cannot happen because we constructed the list with our party inside.") (findPartyIndex me)
   let resend = writeTQueue resendQ
@@ -243,13 +240,10 @@ withReliability tracer MessagePersistence{saveAcks, loadAcks, appendMessage, loa
             case msg of
               Data{} -> do
                 localCounter <- atomically $ cacheMessage msg >> incrementAckCounter
-                saveAcks localCounter
-                appendMessage msg
                 traceWith tracer BroadcastCounter{ourIndex, localCounter}
                 broadcast $ ReliableMsg localCounter msg
               Ping{} -> do
                 localCounter <- readTVarIO acksCache
-                saveAcks localCounter
                 traceWith tracer BroadcastPing{ourIndex, localCounter}
                 broadcast $ ReliableMsg localCounter msg
         }
