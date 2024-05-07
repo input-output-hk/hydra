@@ -25,6 +25,7 @@ import Hydra.API.WSServer (nextSequenceNumber, wsApp)
 import Hydra.Cardano.Api (LedgerEra)
 import Hydra.Chain (Chain (..), IsChainState)
 import Hydra.Chain.Direct.State ()
+import Hydra.HeadLogic (HeadState)
 import Hydra.Logging (Tracer, traceWith)
 import Hydra.Network (IP, PortNumber)
 import Hydra.Party (Party)
@@ -67,8 +68,9 @@ withAPIServer ::
   Tracer IO APIServerLog ->
   Chain tx IO ->
   PParams LedgerEra ->
+  STM IO (HeadState tx) ->
   ServerComponent tx IO ()
-withAPIServer host port party PersistenceIncremental{loadAll, append} tracer chain pparams callback action =
+withAPIServer host port party PersistenceIncremental{loadAll, append} tracer chain pparams getHeadState callback action =
   handle onIOException $ do
     responseChannel <- newBroadcastTChanIO
     timedOutputEvents <- loadAll
@@ -97,7 +99,14 @@ withAPIServer host port party PersistenceIncremental{loadAll, append} tracer cha
             websocketsOr
               defaultConnectionOptions
               (wsApp party tracer history callback headStatusP snapshotUtxoP responseChannel)
-              (httpApp tracer chain pparams (atomically $ getLatest headIdP) (atomically $ getLatest snapshotUtxoP))
+              ( httpApp
+                  tracer
+                  chain
+                  pparams
+                  (atomically $ getLatest headIdP)
+                  (atomically $ getLatest snapshotUtxoP)
+                  (atomically getHeadState)
+              )
       )
       ( do
           waitForServerRunning

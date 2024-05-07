@@ -366,7 +366,7 @@ withTestAPIServer ::
   (Server SimpleTx IO -> IO ()) ->
   IO ()
 withTestAPIServer port actor persistence tracer action = do
-  withAPIServer @SimpleTx "127.0.0.1" port actor persistence tracer dummyChainHandle defaultPParams noop action
+  withAPIServer @SimpleTx "127.0.0.1" port actor persistence tracer dummyChainHandle defaultPParams (error "not implemented") noop action
 
 -- | Connect to a websocket server running at given path. Fails if not connected
 -- within 2 seconds.

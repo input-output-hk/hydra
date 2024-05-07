@@ -25,10 +25,13 @@ import Hydra.Logging (Verbosity (..), traceWith, withTracer)
 import Hydra.Logging.Messages (HydraLog (..))
 import Hydra.Logging.Monitoring (withMonitoring)
 import Hydra.Node (
+  DraftHydraNode (..),
+  NodeState (..),
   chainStateHistory,
   connect,
   hydrate,
   initEnvironment,
+  queryHeadState,
   runHydraNode,
   wireChainInput,
   wireClientInput,
@@ -82,18 +85,19 @@ run opts = do
               -- NOTE: Add any custom sinks here
               -- , customSink
               ]
-        wetHydraNode <- hydrate (contramap Node tracer) env ledger initialChainState eventSource eventSinks
+        hydraNode <- hydrate (contramap Node tracer) env ledger initialChainState eventSource eventSinks
         -- Chain
         withChain <- prepareChainComponent tracer env chainConfig
-        withChain (chainStateHistory wetHydraNode) (wireChainInput wetHydraNode) $ \chain -> do
+        withChain (chainStateHistory hydraNode) (wireChainInput hydraNode) $ \chain -> do
           -- API
           apiPersistence <- createPersistenceIncremental $ persistenceDir <> "/server-output"
-          withAPIServer apiHost apiPort party apiPersistence (contramap APIServer tracer) chain pparams (wireClientInput wetHydraNode) $ \server -> do
+          let DraftHydraNode{nodeState = NodeState{queryHeadState}} = hydraNode
+          withAPIServer apiHost apiPort party apiPersistence (contramap APIServer tracer) chain pparams queryHeadState (wireClientInput hydraNode) $ \server -> do
             -- Network
             let networkConfiguration = NetworkConfiguration{persistenceDir, signingKey, otherParties, host, port, peers, nodeId}
-            withNetwork tracer networkConfiguration (wireNetworkInput wetHydraNode) $ \network -> do
+            withNetwork tracer networkConfiguration (wireNetworkInput hydraNode) $ \network -> do
               -- Main loop
-              connect chain network server wetHydraNode
+              connect chain network server hydraNode
                 >>= runHydraNode
  where
   withCardanoLedger protocolParams globals action =

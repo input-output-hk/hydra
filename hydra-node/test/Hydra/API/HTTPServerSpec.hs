@@ -35,6 +35,9 @@ import Test.QuickCheck (
   withMaxSuccess,
  )
 
+getFails :: IO a
+getFails = error "should not be used"
+
 spec :: Spec
 spec = do
   parallel $ do
@@ -90,7 +93,7 @@ apiServerSpec = do
     let getNothing = pure Nothing
 
     describe "GET /protocol-parameters" $ do
-      with (return $ httpApp @SimpleTx nullTracer dummyChainHandle defaultPParams getNothing getNothing) $ do
+      with (return $ httpApp @SimpleTx nullTracer dummyChainHandle defaultPParams getNothing getNothing getFails) $ do
         it "matches schema" $
           withJsonSpecifications $ \schemaDir -> do
             get "/protocol-parameters"
@@ -109,7 +112,8 @@ apiServerSpec = do
     describe "GET /snapshot/utxo" $ do
       prop "responds correctly" $ \utxo -> do
         let getUTxO = pure utxo
-        withApplication (httpApp @SimpleTx nullTracer dummyChainHandle defaultPParams getNothing getUTxO) $ do
+            getHeadState = error "should not be used"
+        withApplication (httpApp @SimpleTx nullTracer dummyChainHandle defaultPParams getNothing getUTxO getHeadState) $ do
           get "/snapshot/utxo"
             `shouldRespondWith` case utxo of
               Nothing -> 404
@@ -122,7 +126,8 @@ apiServerSpec = do
           . withJsonSpecifications
           $ \schemaDir -> do
             let getUTxO = pure $ Just utxo
-            withApplication (httpApp @Tx nullTracer dummyChainHandle defaultPParams getNothing getUTxO) $ do
+                getHeadState = error "should not be used"
+            withApplication (httpApp @Tx nullTracer dummyChainHandle defaultPParams getNothing getUTxO getHeadState) $ do
               get "/snapshot/utxo"
                 `shouldRespondWith` 200
                   { matchBody =
@@ -140,7 +145,7 @@ apiServerSpec = do
                   pure $ Right tx
               }
       prop "responds on valid requests" $ \(request :: DraftCommitTxRequest Tx) ->
-        withApplication (httpApp nullTracer workingChainHandle defaultPParams getHeadId getNothing) $ do
+        withApplication (httpApp nullTracer workingChainHandle defaultPParams getHeadId getNothing getFails) $ do
           post "/commit" (Aeson.encode request)
             `shouldRespondWith` 200
 
@@ -164,7 +169,7 @@ apiServerSpec = do
               _ -> property
         checkCoverage $
           coverage $
-            withApplication (httpApp @Tx nullTracer (failingChainHandle postTxError) defaultPParams getHeadId getNothing) $ do
+            withApplication (httpApp @Tx nullTracer (failingChainHandle postTxError) defaultPParams getHeadId getNothing getFails) $ do
               post "/commit" (Aeson.encode (request :: DraftCommitTxRequest Tx))
                 `shouldRespondWith` expectedResponse
 

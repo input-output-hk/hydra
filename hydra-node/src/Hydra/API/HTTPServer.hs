@@ -20,6 +20,7 @@ import Hydra.Cardano.Api (
 import Hydra.Chain (Chain (..), CommitBlueprintTx (..), IsChainState, PostTxError (..), draftCommitTx)
 import Hydra.Chain.Direct.State ()
 import Hydra.HeadId (HeadId)
+import Hydra.HeadLogic (HeadState)
 import Hydra.Ledger (IsTx (..))
 import Hydra.Logging (Tracer, traceWith)
 import Network.HTTP.Types (status200, status400, status404, status500)
@@ -128,14 +129,17 @@ httpApp ::
   IO (Maybe HeadId) ->
   -- | Get latest confirmed UTxO snapshot.
   IO (Maybe (UTxOType tx)) ->
+  IO (HeadState tx) ->
   Application
-httpApp tracer directChain pparams getInitializingHeadId getConfirmedUTxO request respond = do
+httpApp tracer directChain pparams getInitializingHeadId getConfirmedUTxO getHeadState request respond = do
   traceWith tracer $
     APIHTTPRequestReceived
       { method = Method $ requestMethod request
       , path = PathInfo $ rawPathInfo request
       }
   case (requestMethod request, pathInfo request) of
+    ("GET", ["head-state"]) ->
+      getHeadState >>= respond . okJSON
     ("GET", ["snapshot", "utxo"]) ->
       -- XXX: Should ensure the UTxO is of the right head and the head is still
       -- open. This is something we should fix on the "read model" side of the
