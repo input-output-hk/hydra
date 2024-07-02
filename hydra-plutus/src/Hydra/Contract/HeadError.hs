@@ -4,7 +4,6 @@ module Hydra.Contract.HeadError (
 ) where
 
 import Hydra.Contract.Error (ToErrorCode (..), errorCode)
-import Text.Show (Show)
 
 data HeadError
   = InvalidHeadStateTransition
@@ -41,10 +40,11 @@ data HeadError
   | NoOutputDatumError
   | UnexpectedNonInlineDatum
   | SignatureVerificationFailed
-  | PartySignatureVerificationFailed
   | NotPayingToHead
   | NotAllValueCollected
-  deriving stock (Show)
+  | SnapshotNumberMismatch
+  | IncorrectVersion
+  | LastKnownVersionIsNotMatching
 
 instance ToErrorCode HeadError where
   toErrorCode = \case
@@ -82,6 +82,8 @@ instance ToErrorCode HeadError where
     NoOutputDatumError -> "H32"
     UnexpectedNonInlineDatum -> "H33"
     SignatureVerificationFailed -> "H34"
-    PartySignatureVerificationFailed -> "H35"
-    NotPayingToHead -> "H36"
-    NotAllValueCollected -> "H37"
+    NotPayingToHead -> "H35"
+    NotAllValueCollected -> "H36"
+    SnapshotNumberMismatch -> "H37"
+    IncorrectVersion -> "H38"
+    LastKnownVersionIsNotMatching -> "H39"

@@ -20,10 +20,13 @@ import Hydra.Cardano.Api (
  )
 import Hydra.Cardano.Api.Network (networkIdToNetwork)
 import Hydra.Chain.Direct.Contract.Abort (genAbortMutation, healthyAbortTx, propHasCommit, propHasInitial)
-import Hydra.Chain.Direct.Contract.Close (genCloseInitialMutation, genCloseMutation, healthyCloseInitialTx, healthyCloseTx)
+import Hydra.Chain.Direct.Contract.Close.CloseCurrent (genCloseCurrentMutation, healthyCloseCurrentTx)
+import Hydra.Chain.Direct.Contract.Close.CloseInitial (genCloseInitialMutation, healthyCloseInitialTx)
+import Hydra.Chain.Direct.Contract.Close.CloseOutdated (genCloseOutdatedMutation, healthyCloseOutdatedTx)
 import Hydra.Chain.Direct.Contract.CollectCom (genCollectComMutation, healthyCollectComTx)
 import Hydra.Chain.Direct.Contract.Commit (genCommitMutation, healthyCommitTx)
-import Hydra.Chain.Direct.Contract.Contest (genContestMutation, healthyContestTx)
+import Hydra.Chain.Direct.Contract.Contest.ContestCurrent (genContestMutation, healthyContestTx)
+import Hydra.Chain.Direct.Contract.Decrement (genDecrementMutation, healthyDecrementTx)
 import Hydra.Chain.Direct.Contract.FanOut (genFanoutMutation, healthyFanoutTx)
 import Hydra.Chain.Direct.Contract.Init (genInitMutation, healthyInitTx)
 import Hydra.Chain.Direct.Contract.Mutation (propMutation)
@@ -113,17 +116,27 @@ spec = parallel $ do
       propTransactionEvaluates healthyCollectComTx
     prop "does not survive random adversarial mutations" $
       propMutation healthyCollectComTx genCollectComMutation
-  describe "Close" $ do
+  describe "Decrement" $ do
     prop "is healthy" $
-      propTransactionEvaluates healthyCloseTx
+      propTransactionEvaluates healthyDecrementTx
     prop "does not survive random adversarial mutations" $
-      propMutation healthyCloseTx genCloseMutation
+      propMutation healthyDecrementTx genDecrementMutation
   describe "CloseInitial" $ do
     prop "is healthy" $
       propTransactionEvaluates healthyCloseInitialTx
     prop "does not survive random adversarial mutations" $
       propMutation healthyCloseInitialTx genCloseInitialMutation
-  describe "Contest" $ do
+  describe "CloseCurrent" $ do
+    prop "is healthy" $
+      propTransactionEvaluates healthyCloseCurrentTx
+    prop "does not survive random adversarial mutations" $
+      propMutation healthyCloseCurrentTx genCloseCurrentMutation
+  describe "CloseOutdated" $ do
+    prop "is healthy" $
+      propTransactionEvaluates healthyCloseOutdatedTx
+    prop "does not survive random adversarial mutations" $
+      propMutation healthyCloseOutdatedTx genCloseOutdatedMutation
+  describe "ContestCurrent" $ do
     prop "is healthy" $
       propTransactionEvaluates healthyContestTx
     prop "does not survive random adversarial mutations" $
@@ -203,27 +216,33 @@ prop_hashingCaresAboutOrderingOfTxOuts =
 
 prop_verifyOffChainSignatures :: Property
 prop_verifyOffChainSignatures =
-  forAll arbitrary $ \(snapshot@Snapshot{headId, number, utxo} :: Snapshot SimpleTx) ->
+  forAll arbitrary $ \(snapshot@Snapshot{headId, number, utxo, utxoToDecommit, version} :: Snapshot SimpleTx) ->
     forAll arbitrary $ \seed ->
       let sk = generateSigningKey seed
           offChainSig = sign sk snapshot
           onChainSig = List.head . toPlutusSignatures $ aggregate [offChainSig]
           onChainParty = partyToChain $ deriveParty sk
           snapshotNumber = toInteger number
-          utxoHash = toBuiltin $ hashUTxO @SimpleTx utxo
-       in verifyPartySignature (headIdToCurrencySymbol headId) snapshotNumber utxoHash onChainParty onChainSig
+          snapshotVersion = toInteger version
+          utxoHash = (toBuiltin $ hashUTxO @SimpleTx utxo)
+          utxoToDecommitHash = (toBuiltin . hashUTxO @SimpleTx $ fromMaybe mempty utxoToDecommit)
+       in verifyPartySignature (headIdToCurrencySymbol headId) snapshotNumber utxoHash utxoToDecommitHash snapshotVersion onChainParty onChainSig
             & counterexample ("headId: " <> show headId)
             & counterexample ("signed: " <> show onChainSig)
             & counterexample ("party: " <> show onChainParty)
+            & counterexample ("utxoHash: " <> show utxoHash)
+            & counterexample ("version: " <> show version)
             & counterexample ("message: " <> show (getSignableRepresentation snapshot))
 
 prop_verifySnapshotSignatures :: Property
 prop_verifySnapshotSignatures =
-  forAll arbitrary $ \(snapshot@Snapshot{headId, number, utxo} :: Snapshot SimpleTx) ->
+  forAll arbitrary $ \(snapshot@Snapshot{headId, number, utxo, utxoToDecommit, version} :: Snapshot SimpleTx) ->
     forAll arbitrary $ \sks ->
       let parties = deriveParty <$> sks
           onChainParties = partyToChain <$> parties
           signatures = toPlutusSignatures $ aggregate [sign sk snapshot | sk <- sks]
           snapshotNumber = toInteger number
-          utxoHash = toBuiltin $ hashUTxO @SimpleTx utxo
-       in verifySnapshotSignature onChainParties (headIdToCurrencySymbol headId) snapshotNumber utxoHash signatures
+          snapshotVersion = toInteger version
+          utxoHash = toBuiltin (hashUTxO @SimpleTx utxo)
+          utxoToDecommitHash = (toBuiltin . hashUTxO @SimpleTx $ fromMaybe mempty utxoToDecommit)
+       in verifySnapshotSignature onChainParties (headIdToCurrencySymbol headId) snapshotNumber utxoHash utxoToDecommitHash snapshotVersion signatures

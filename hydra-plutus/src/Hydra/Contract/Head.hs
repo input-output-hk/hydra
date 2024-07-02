@@ -1,9 +1,8 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -fno-specialize #-}
+{-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:conservative-optimisation #-}
 {-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:defer-errors #-}
--- Avoid trace calls to be optimized away when inlining functions.
-{-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:no-simplifier-inline #-}
 -- Plutus core version to compile to. In babbage era, that is Cardano protocol
 -- version 7 and 8, only plutus-core version 1.0.0 is available.
 {-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:target-version=1.0.0 #-}
@@ -16,7 +15,7 @@ import Hydra.Cardano.Api (PlutusScriptVersion (PlutusScriptV2))
 import Hydra.Contract.Commit (Commit (..))
 import Hydra.Contract.Commit qualified as Commit
 import Hydra.Contract.HeadError (HeadError (..), errorCode)
-import Hydra.Contract.HeadState (Input (..), Signature, SnapshotNumber, State (..))
+import Hydra.Contract.HeadState (Hash, Input (..), Signature, SnapshotNumber, SnapshotVersion, State (..), Version (..))
 import Hydra.Contract.Util (hasST, mustBurnAllHeadTokens, mustNotMintOrBurn, (===))
 import Hydra.Data.ContestationPeriod (ContestationPeriod, addContestationPeriod, milliseconds)
 import Hydra.Data.Party (Party (vkey))
@@ -73,12 +72,14 @@ headValidator oldState input ctx =
       checkCollectCom ctx (contestationPeriod, parties, headId)
     (Initial{parties, headId}, Abort) ->
       checkAbort ctx headId parties
-    (Open{parties, utxoHash = initialUtxoHash, contestationPeriod, headId}, Close{signature}) ->
-      checkClose ctx parties initialUtxoHash signature contestationPeriod headId
-    (Closed{parties, snapshotNumber = closedSnapshotNumber, contestationDeadline, contestationPeriod, headId, contesters}, Contest{signature}) ->
-      checkContest ctx contestationDeadline contestationPeriod parties closedSnapshotNumber signature contesters headId
-    (Closed{parties, utxoHash, contestationDeadline, headId}, Fanout{numberOfFanoutOutputs}) ->
-      checkFanout utxoHash contestationDeadline numberOfFanoutOutputs ctx headId parties
+    (Open{parties, contestationPeriod, snapshotNumber, headId, version}, Decrement{signature, numberOfDecommitOutputs}) ->
+      checkDecrement ctx parties snapshotNumber contestationPeriod headId version signature numberOfDecommitOutputs
+    (Open{parties, utxoHash = initialUtxoHash, contestationPeriod, headId, snapshotNumber, version}, Close{signature, version = expectedVersion, utxoToDecommitHash}) ->
+      checkClose ctx parties initialUtxoHash signature contestationPeriod headId snapshotNumber version expectedVersion utxoToDecommitHash
+    (Closed{parties, snapshotNumber = closedSnapshotNumber, contestationDeadline, contestationPeriod, headId, contesters, version}, Contest{signature, version = expectedVersion, utxoToDecommitHash}) ->
+      checkContest ctx contestationDeadline contestationPeriod parties closedSnapshotNumber signature contesters headId version expectedVersion utxoToDecommitHash
+    (Closed{parties, utxoHash, utxoToDecommitHash, contestationDeadline, headId}, Fanout{numberOfFanoutOutputs, numberOfDecommitOutputs}) ->
+      checkFanout utxoHash utxoToDecommitHash contestationDeadline numberOfFanoutOutputs numberOfDecommitOutputs ctx headId parties
     _ ->
       traceError $(errorCode InvalidHeadStateTransition)
 
@@ -143,7 +144,8 @@ checkCollectCom ::
   Bool
 checkCollectCom ctx@ScriptContext{scriptContextTxInfo = txInfo} (contestationPeriod, parties, headId) =
   mustCollectUtxoHash
-    && mustNotChangeParameters
+    && mustInitVersion
+    && mustNotChangeParameters (parties', parties) (contestationPeriod', contestationPeriod) (headId', headId)
     && mustCollectAllValue
     -- XXX: Is this really needed? If yes, why not check on the output?
     && traceIfFalse $(errorCode STNotSpent) (hasST headId val)
@@ -155,11 +157,9 @@ checkCollectCom ctx@ScriptContext{scriptContextTxInfo = txInfo} (contestationPer
     traceIfFalse $(errorCode IncorrectUtxoHash) $
       utxoHash == hashPreSerializedCommits collectedCommits
 
-  mustNotChangeParameters =
-    traceIfFalse $(errorCode ChangedParameters) $
-      parties' == parties
-        && contestationPeriod' == contestationPeriod
-        && headId' == headId
+  mustInitVersion =
+    traceIfFalse $(errorCode IncorrectVersion) $
+      version' == sn && sn == 0
 
   mustCollectAllValue =
     traceIfFalse $(errorCode NotAllValueCollected) $
@@ -169,18 +169,8 @@ checkCollectCom ctx@ScriptContext{scriptContextTxInfo = txInfo} (contestationPer
       -- would commonly only be a small number of inputs/outputs to pay fees.
       otherValueOut == notCollectedValueIn - txInfoFee txInfo
 
-  (parties', utxoHash, contestationPeriod', headId') =
-    -- XXX: fromBuiltinData is super big (and also expensive?)
-    case fromBuiltinData @DatumType $ getDatum (headOutputDatum ctx) of
-      Just
-        Open
-          { parties = p
-          , utxoHash = h
-          , contestationPeriod = cp
-          , headId = hId
-          } ->
-          (p, h, cp, hId)
-      _ -> traceError $(errorCode WrongStateInOutputDatum)
+  (utxoHash, parties', sn, contestationPeriod', headId', version') =
+    extractOpenDatum ctx
 
   headAddress = getHeadAddress ctx
 
@@ -219,12 +209,60 @@ checkCollectCom ctx@ScriptContext{scriptContextTxInfo = txInfo} (contestationPer
 -- if it is there return the committed utxo
 commitDatum :: TxOut -> [Commit]
 commitDatum input = do
-  let datum = getTxOutDatum input
+  let !datum = getTxOutDatum input
   case fromBuiltinData @Commit.DatumType $ getDatum datum of
     Just (_party, commits, _headId) ->
       commits
     Nothing -> []
 {-# INLINEABLE commitDatum #-}
+
+checkDecrement ::
+  ScriptContext ->
+  [Party] ->
+  SnapshotNumber ->
+  ContestationPeriod ->
+  CurrencySymbol ->
+  Integer ->
+  [Signature] ->
+  Integer ->
+  Bool
+checkDecrement ctx@ScriptContext{scriptContextTxInfo = txInfo} prevParties prevSnapshotNumber prevCperiod prevHeadId prevVersion signature numberOfDecommitOutputs =
+  mustNotChangeParameters (prevParties, nextParties) (prevCperiod, nextCperiod) (prevHeadId, nextHeadId)
+    && mustIncreaseVersion
+    && checkSnapshot
+    && checkSnapshotSignature
+    && mustBeSignedByParticipant ctx prevHeadId
+    && mustDecreaseValue
+ where
+  checkSnapshot =
+    traceIfFalse $(errorCode SnapshotNumberMismatch) $
+      nextSnapshotNumber > prevSnapshotNumber
+
+  checkSnapshotSignature =
+    verifySnapshotSignature nextParties nextHeadId nextSnapshotNumber nextUtxoHash decommitUtxoHash prevVersion signature
+
+  mustDecreaseValue =
+    traceIfFalse $(errorCode HeadValueIsNotPreserved) $
+      headInValue == headOutValue <> foldMap txOutValue decommitOutputs
+
+  mustIncreaseVersion =
+    traceIfFalse $(errorCode IncorrectVersion) $
+      nextVersion == prevVersion + 1
+
+  -- NOTE: we always assume Head output is the first one so we pick all other
+  -- outputs of a decommit tx to calculate the expected hash.
+  decommitUtxoHash = hashTxOuts decommitOutputs
+  (nextUtxoHash, nextParties, nextSnapshotNumber, nextCperiod, nextHeadId, nextVersion) =
+    extractOpenDatum ctx
+
+  -- NOTE: head output + whatever is decommitted needs to be equal to the head input.
+  headOutValue = txOutValue $ head outputs
+  headInValue = maybe mempty (txOutValue . txInInfoResolved) $ findOwnInput ctx
+
+  decommitOutputs = take numberOfDecommitOutputs (tail outputs)
+
+  outputs = txInfoOutputs txInfo
+{-# INLINEABLE checkDecrement #-}
 
 -- | The close validator must verify that:
 --
@@ -249,17 +287,27 @@ checkClose ::
   [Signature] ->
   ContestationPeriod ->
   CurrencySymbol ->
+  SnapshotNumber ->
+  SnapshotVersion ->
+  Version ->
+  BuiltinByteString ->
   Bool
-checkClose ctx parties initialUtxoHash sig cperiod headPolicyId =
+checkClose ctx parties initialUtxoHash sig cperiod headPolicyId snapshotNumber inputVersion expectedVersion utxoToDecommitHash =
   mustNotMintOrBurn txInfo
     && hasBoundedValidity
     && checkDeadline
-    && checkSnapshot
     && mustBeSignedByParticipant ctx headPolicyId
+    -- && checkLastKnownVersion
+    && checkSnapshot
     && mustInitializeContesters
     && mustPreserveValue
-    && mustNotChangeParameters
+    && mustNotChangeParameters (parties', parties) (cperiod', cperiod) (headId', headPolicyId)
+    && checkSnapshotNumber
  where
+  checkSnapshotNumber =
+    traceIfFalse $(errorCode TooOldSnapshot) $
+      closedSnapshotNumber >= snapshotNumber
+
   mustPreserveValue =
     traceIfFalse $(errorCode HeadValueIsNotPreserved) $
       val === val'
@@ -272,27 +320,36 @@ checkClose ctx parties initialUtxoHash sig cperiod headPolicyId =
     traceIfFalse $(errorCode HasBoundedValidityCheckFailed) $
       tMax - tMin <= cp
 
-  (closedSnapshotNumber, closedUtxoHash, parties', closedContestationDeadline, cperiod', headId', contesters') =
-    -- XXX: fromBuiltinData is super big (and also expensive?)
-    case fromBuiltinData @DatumType $ getDatum (headOutputDatum ctx) of
-      Just
-        Closed
-          { snapshotNumber
-          , utxoHash
-          , parties = p
-          , contestationDeadline
-          , headId
-          , contesters
-          , contestationPeriod
-          } -> (snapshotNumber, utxoHash, p, contestationDeadline, contestationPeriod, headId, contesters)
-      _ -> traceError $(errorCode WrongStateInOutputDatum)
+  (closedSnapshotNumber, closedUtxoHash, decommitHash, parties', closedContestationDeadline, cperiod', headId', contesters', outputVersion) =
+    extractClosedDatum ctx
+
+  -- TODO: This check can't be done currently since we set the version in the close datum
+  -- to be whatever we have in the snapshot and not what we had in the open
+  -- datum.
+  checkLastKnownVersion =
+    traceIfFalse $(errorCode LastKnownVersionIsNotMatching) $
+      inputVersion == outputVersion
+
+  (correctDecommitHash, correctVersion) =
+    case expectedVersion of
+      InitialVersion ->
+        (initialUtxoHash, 0)
+      CurrentVersion ->
+        (decommitHash, outputVersion)
+      OutdatedVersion ->
+        -- TODO: missing to check -> η∆′ = ⊥ Is this really needed? Signature
+        -- would be invalid anyway?
+        (utxoToDecommitHash, outputVersion)
 
   checkSnapshot
     | closedSnapshotNumber > 0 =
-        verifySnapshotSignature parties headPolicyId closedSnapshotNumber closedUtxoHash sig
+        verifySnapshotSignature parties headPolicyId closedSnapshotNumber closedUtxoHash correctDecommitHash correctVersion sig
     | otherwise =
         traceIfFalse $(errorCode ClosedWithNonInitialHash) $
-          closedUtxoHash == initialUtxoHash
+          -- Spec: v = s = s = 0
+          inputVersion == snapshotNumber
+            && snapshotNumber == 0
+            && closedUtxoHash == initialUtxoHash
 
   checkDeadline =
     traceIfFalse $(errorCode IncorrectClosedContestationDeadline) $
@@ -307,12 +364,6 @@ checkClose ctx parties initialUtxoHash sig cperiod headPolicyId =
   tMin = case ivFrom $ txInfoValidRange txInfo of
     LowerBound (Finite t) _ -> t
     _InfiniteBound -> traceError $(errorCode InfiniteLowerBound)
-
-  mustNotChangeParameters =
-    traceIfFalse $(errorCode ChangedParameters) $
-      headId' == headPolicyId
-        && parties' == parties
-        && cperiod' == cperiod
 
   mustInitializeContesters =
     traceIfFalse $(errorCode ContestersNonEmpty) $
@@ -356,9 +407,13 @@ checkContest ::
   [PubKeyHash] ->
   -- | Head id
   CurrencySymbol ->
+  SnapshotVersion ->
+  Version ->
+  BuiltinByteString ->
   Bool
-checkContest ctx contestationDeadline contestationPeriod parties closedSnapshotNumber sig contesters headId =
+checkContest ctx contestationDeadline contestationPeriod parties closedSnapshotNumber sig contesters headId inputVersion expectedVersion utxoToDecommitHash =
   mustNotMintOrBurn txInfo
+    -- && checkLastKnownVersion
     && mustBeNewer
     && mustBeMultiSigned
     && mustBeSignedByParticipant ctx headId
@@ -366,7 +421,7 @@ checkContest ctx contestationDeadline contestationPeriod parties closedSnapshotN
     && mustBeWithinContestationPeriod
     && mustUpdateContesters
     && mustPushDeadline
-    && mustNotChangeParameters
+    && mustNotChangeParameters (parties', parties) (contestationPeriod', contestationPeriod) (headId', headId)
     && mustPreserveValue
  where
   mustPreserveValue =
@@ -381,8 +436,28 @@ checkContest ctx contestationDeadline contestationPeriod parties closedSnapshotN
     traceIfFalse $(errorCode TooOldSnapshot) $
       contestSnapshotNumber > closedSnapshotNumber
 
+  -- TODO: This check can't be done currently since we set the version in the close datum
+  -- to be whatever we have in the snapshot and not what we had in the open datum.
+  checkLastKnownVersion =
+    traceIfFalse $(errorCode LastKnownVersionIsNotMatching) $
+      inputVersion == outputVersion
+
+  (correctDecommitHash, correctVersion) =
+    case expectedVersion of
+      InitialVersion ->
+        -- NOTE: We don't really have InitialVersion when contesting. This is
+        -- the consequence of re-using the same 'Version' type for both contest
+        -- and close.
+        (decommitHash, 0)
+      CurrentVersion ->
+        (decommitHash, outputVersion)
+      OutdatedVersion ->
+        -- TODO: missing to check -> η∆′ = ⊥ Is this really needed? Signature
+        -- would be invalid anyway?
+        (utxoToDecommitHash, outputVersion)
+
   mustBeMultiSigned =
-    verifySnapshotSignature parties headId contestSnapshotNumber contestUtxoHash sig
+    verifySnapshotSignature parties headId contestSnapshotNumber contestUtxoHash correctDecommitHash correctVersion sig
 
   mustBeWithinContestationPeriod =
     case ivTo (txInfoValidRange txInfo) of
@@ -390,12 +465,6 @@ checkContest ctx contestationDeadline contestationPeriod parties closedSnapshotN
         traceIfFalse $(errorCode UpperBoundBeyondContestationDeadline) $
           time <= contestationDeadline
       _ -> traceError $(errorCode ContestNoUpperBoundDefined)
-
-  mustNotChangeParameters =
-    traceIfFalse $(errorCode ChangedParameters) $
-      parties' == parties
-        && headId' == headId
-        && contestationPeriod' == contestationPeriod
 
   mustPushDeadline =
     if length contesters' == length parties'
@@ -410,20 +479,8 @@ checkContest ctx contestationDeadline contestationPeriod parties closedSnapshotN
     traceIfFalse $(errorCode ContesterNotIncluded) $
       contesters' == contester : contesters
 
-  (contestSnapshotNumber, contestUtxoHash, parties', contestationDeadline', contestationPeriod', headId', contesters') =
-    -- XXX: fromBuiltinData is super big (and also expensive?)
-    case fromBuiltinData @DatumType $ getDatum (headOutputDatum ctx) of
-      Just
-        Closed
-          { snapshotNumber
-          , utxoHash
-          , parties = p
-          , contestationDeadline = dl
-          , contestationPeriod = cp
-          , headId = hid
-          , contesters = cs
-          } -> (snapshotNumber, utxoHash, p, dl, cp, hid, cs)
-      _ -> traceError $(errorCode WrongStateInOutputDatum)
+  (contestSnapshotNumber, contestUtxoHash, decommitHash, parties', contestationDeadline', contestationPeriod', headId', contesters', outputVersion) =
+    extractClosedDatum ctx
 
   ScriptContext{scriptContextTxInfo = txInfo} = ctx
 
@@ -439,13 +496,15 @@ checkContest ctx contestationDeadline contestationPeriod parties closedSnapshotN
 
 checkFanout ::
   BuiltinByteString ->
+  BuiltinByteString ->
   POSIXTime ->
+  Integer ->
   Integer ->
   ScriptContext ->
   CurrencySymbol ->
   [Party] ->
   Bool
-checkFanout utxoHash contestationDeadline numberOfFanoutOutputs ScriptContext{scriptContextTxInfo = txInfo} currencySymbol parties =
+checkFanout utxoHash utxoToDecommitHash contestationDeadline numberOfFanoutOutputs numberOfDecommitOutputs ScriptContext{scriptContextTxInfo = txInfo} currencySymbol parties =
   mustBurnAllHeadTokens minted currencySymbol parties
     && hasSameUTxOHash
     && afterContestationDeadline
@@ -454,9 +513,10 @@ checkFanout utxoHash contestationDeadline numberOfFanoutOutputs ScriptContext{sc
 
   hasSameUTxOHash =
     traceIfFalse $(errorCode FannedOutUtxoHashNotEqualToClosedUtxoHash) $
-      fannedOutUtxoHash == utxoHash
-
+      fannedOutUtxoHash == utxoHash && decommitUtxoHash == utxoToDecommitHash
   fannedOutUtxoHash = hashTxOuts $ take numberOfFanoutOutputs txInfoOutputs
+
+  decommitUtxoHash = hashTxOuts $ take numberOfDecommitOutputs $ drop numberOfFanoutOutputs txInfoOutputs
 
   TxInfo{txInfoOutputs} = txInfo
 
@@ -500,6 +560,18 @@ getHeadInput ctx = case findOwnInput ctx of
 getHeadAddress :: ScriptContext -> Address
 getHeadAddress = txOutAddress . txInInfoResolved . getHeadInput
 {-# INLINEABLE getHeadAddress #-}
+
+mustNotChangeParameters ::
+  ([Party], [Party]) ->
+  (ContestationPeriod, ContestationPeriod) ->
+  (CurrencySymbol, CurrencySymbol) ->
+  Bool
+mustNotChangeParameters (parties', parties) (contestationPeriod', contestationPeriod) (headId', headId) =
+  traceIfFalse $(errorCode ChangedParameters) $
+    parties' == parties
+      && contestationPeriod' == contestationPeriod
+      && headId' == headId
+{-# INLINEABLE mustNotChangeParameters #-}
 
 -- XXX: We might not need to distinguish between the three cases here.
 mustBeSignedByParticipant ::
@@ -580,28 +652,29 @@ hashTxOuts =
 -- | Check if 'TxOut' contains the PT token.
 hasPT :: CurrencySymbol -> TxOut -> Bool
 hasPT headCurrencySymbol txOut =
-  let pts = findParticipationTokens headCurrencySymbol (txOutValue txOut)
+  let !pts = findParticipationTokens headCurrencySymbol (txOutValue txOut)
    in length pts == 1
 {-# INLINEABLE hasPT #-}
 
-verifySnapshotSignature :: [Party] -> CurrencySymbol -> SnapshotNumber -> BuiltinByteString -> [Signature] -> Bool
-verifySnapshotSignature parties headId snapshotNumber utxoHash sigs =
+verifySnapshotSignature :: [Party] -> CurrencySymbol -> SnapshotNumber -> BuiltinByteString -> BuiltinByteString -> Integer -> [Signature] -> Bool
+verifySnapshotSignature parties headId snapshotNumber utxoHash utxoToDecommitHash version sigs =
   traceIfFalse $(errorCode SignatureVerificationFailed) $
     length parties
       == length sigs
-      && all (uncurry $ verifyPartySignature headId snapshotNumber utxoHash) (zip parties sigs)
+      && all (uncurry $ verifyPartySignature headId snapshotNumber utxoHash utxoToDecommitHash version) (zip parties sigs)
 {-# INLINEABLE verifySnapshotSignature #-}
 
-verifyPartySignature :: CurrencySymbol -> SnapshotNumber -> BuiltinByteString -> Party -> Signature -> Bool
-verifyPartySignature headId snapshotNumber utxoHash party signed =
-  traceIfFalse $(errorCode PartySignatureVerificationFailed) $
-    verifyEd25519Signature (vkey party) message signed
+verifyPartySignature :: CurrencySymbol -> SnapshotNumber -> BuiltinByteString -> BuiltinByteString -> Integer -> Party -> Signature -> Bool
+verifyPartySignature headId snapshotNumber utxoHash utxoToDecommitHash version party =
+  verifyEd25519Signature (vkey party) message
  where
   message =
     -- TODO: document CDDL format, either here or in 'Hydra.Snapshot.getSignableRepresentation'
     Builtins.serialiseData (toBuiltinData headId)
       <> Builtins.serialiseData (toBuiltinData snapshotNumber)
       <> Builtins.serialiseData (toBuiltinData utxoHash)
+      <> Builtins.serialiseData (toBuiltinData utxoToDecommitHash)
+      <> Builtins.serialiseData (toBuiltinData version)
 {-# INLINEABLE verifyPartySignature #-}
 
 compareRef :: TxOutRef -> TxOutRef -> Ordering
@@ -622,3 +695,37 @@ validatorScript = serialiseCompiledCode compiledValidator
 
 validatorHash :: ScriptHash
 validatorHash = scriptValidatorHash PlutusScriptV2 validatorScript
+
+extractClosedDatum :: ScriptContext -> (SnapshotNumber, Hash, Hash, [Party], POSIXTime, ContestationPeriod, CurrencySymbol, [PubKeyHash], SnapshotVersion)
+extractClosedDatum ctx =
+  -- XXX: fromBuiltinData is super big (and also expensive?)
+  case fromBuiltinData @DatumType $ getDatum (headOutputDatum ctx) of
+    Just
+      Closed
+        { snapshotNumber
+        , utxoHash
+        , utxoToDecommitHash
+        , parties = p
+        , contestationDeadline = dl
+        , contestationPeriod = cp
+        , headId = hid
+        , contesters = cs
+        , version
+        } -> (snapshotNumber, utxoHash, utxoToDecommitHash, p, dl, cp, hid, cs, version)
+    _ -> traceError $(errorCode WrongStateInOutputDatum)
+{-# INLINEABLE extractClosedDatum #-}
+
+extractOpenDatum :: ScriptContext -> (Hash, [Party], SnapshotNumber, ContestationPeriod, CurrencySymbol, SnapshotVersion)
+extractOpenDatum ctx =
+  case fromBuiltinData @DatumType $ getDatum (headOutputDatum ctx) of
+    Just
+      Open
+        { utxoHash
+        , parties = p
+        , headId
+        , contestationPeriod
+        , snapshotNumber = sn
+        , version
+        } -> (utxoHash, p, sn, contestationPeriod, headId, version)
+    _ -> traceError $(errorCode WrongStateInOutputDatum)
+{-# INLINEABLE extractOpenDatum #-}

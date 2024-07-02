@@ -15,6 +15,8 @@ import Text.Show (Show)
 
 type SnapshotNumber = Integer
 
+type SnapshotVersion = Integer
+
 type Hash = BuiltinByteString
 
 type Signature = BuiltinByteString
@@ -30,32 +32,55 @@ data State
       { contestationPeriod :: ContestationPeriod
       , parties :: [Party]
       , utxoHash :: Hash
+      -- ^ Spec: η
       , headId :: CurrencySymbol
+      , snapshotNumber :: SnapshotNumber
+      , version :: SnapshotVersion
       }
   | Closed
       { parties :: [Party]
       , snapshotNumber :: SnapshotNumber
       , utxoHash :: Hash
+      -- ^ Spec: η
+      , utxoToDecommitHash :: Hash
+      -- ^ Spec: ηω
       , contestationDeadline :: POSIXTime
       , contestationPeriod :: ContestationPeriod
       , headId :: CurrencySymbol
       , contesters :: [PubKeyHash]
+      , version :: SnapshotVersion
       }
   | Final
   deriving stock (Generic, Show)
 
 PlutusTx.unstableMakeIsData ''State
 
+data Version
+  = InitialVersion
+  | CurrentVersion
+  | OutdatedVersion
+  deriving stock (Show, Generic)
+
+PlutusTx.unstableMakeIsData ''Version
+
 data Input
   = CollectCom
+  | Decrement
+      { signature :: [Signature]
+      , numberOfDecommitOutputs :: Integer
+      }
   | Close
       { signature :: [Signature]
+      , version :: Version
+      , utxoToDecommitHash :: Hash
       }
   | Contest
       { signature :: [Signature]
+      , version :: Version
+      , utxoToDecommitHash :: Hash
       }
   | Abort
-  | Fanout {numberOfFanoutOutputs :: Integer}
+  | Fanout {numberOfFanoutOutputs :: Integer, numberOfDecommitOutputs :: Integer}
   deriving stock (Generic, Show)
 
 PlutusTx.unstableMakeIsData ''Input

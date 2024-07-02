@@ -10,6 +10,7 @@ module Hydra.Chain.Direct.State where
 import Hydra.Prelude hiding (init)
 
 import Cardano.Api.UTxO qualified as UTxO
+import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Maybe (fromJust)
 import Hydra.Cardano.Api (
@@ -86,6 +87,7 @@ import Hydra.Chain.Direct.Tx (
   collectComTx,
   commitTx,
   contestTx,
+  decrementTx,
   fanoutTx,
   headIdToPolicyId,
   initTx,
@@ -103,10 +105,10 @@ import Hydra.Contract.Head qualified as Head
 import Hydra.Contract.HeadState qualified as Head
 import Hydra.Contract.HeadTokens (headPolicyId, mkHeadTokenScript)
 import Hydra.Contract.Initial qualified as Initial
-import Hydra.Crypto (HydraKey)
+import Hydra.Crypto (HydraKey, MultiSignature, aggregate, sign)
 import Hydra.HeadId (HeadId (..))
 import Hydra.Ledger (ChainSlot (ChainSlot), IsTx (hashUTxO))
-import Hydra.Ledger.Cardano (genOneUTxOFor, genUTxOAdaOnlyOfSize, genVerificationKey)
+import Hydra.Ledger.Cardano (genOneUTxOFor, genTxOut, genUTxO1, genUTxOAdaOnlyOfSize, genVerificationKey)
 import Hydra.Ledger.Cardano.Evaluate (genPointInTimeBefore, genValidityBoundsFromContestationPeriod, slotLength, systemStart)
 import Hydra.Ledger.Cardano.Time (slotNoFromUTCTime)
 import Hydra.OnChainId (OnChainId)
@@ -116,10 +118,11 @@ import Hydra.Snapshot (
   ConfirmedSnapshot (..),
   Snapshot (..),
   SnapshotNumber,
+  SnapshotVersion,
   genConfirmedSnapshot,
   getSnapshot,
  )
-import Test.QuickCheck (choose, frequency, oneof, vector)
+import Test.QuickCheck (choose, getPositive, oneof, vector)
 import Test.QuickCheck.Gen (elements)
 import Test.QuickCheck.Modifiers (Positive (Positive))
 
@@ -165,6 +168,7 @@ data ChainTransition
   | Abort
   | Commit
   | Collect
+  | Decrement
   | Close
   | Contest
   | Fanout
@@ -464,6 +468,42 @@ collect ctx headId headParameters utxoToCollect spendableUTxO = do
 
   ChainContext{networkId, ownVerificationKey, scriptRegistry} = ctx
 
+-- | Possible errors when trying to construct decrement tx
+data DecrementTxError
+  = InvalidHeadIdInDecrement {headId :: HeadId}
+  | CannotFindHeadOutputInDecrement
+  | SnapshotMissingDecrementUTxO
+  | SnapshotDecrementUTxOIsNull
+  deriving stock (Show)
+
+decrement ::
+  ChainContext ->
+  HeadId ->
+  HeadParameters ->
+  -- | Spendable UTxO containing head, initial and commit outputs
+  UTxO ->
+  -- | Confirmed Snapshot
+  Snapshot Tx ->
+  MultiSignature (Snapshot Tx) ->
+  Either DecrementTxError Tx
+decrement ctx headId headParameters spendableUTxO snapshot signatures = do
+  pid <- headIdToPolicyId headId ?> InvalidHeadIdInDecrement{headId}
+  let utxoOfThisHead' = utxoOfThisHead pid spendableUTxO
+  headUTxO <- UTxO.find (isScriptTxOut headScript) utxoOfThisHead' ?> CannotFindHeadOutputInDecrement
+  case utxoToDecommit of
+    Nothing ->
+      Left SnapshotMissingDecrementUTxO
+    Just decrementUTxO
+      | null decrementUTxO ->
+          Left SnapshotDecrementUTxOIsNull
+    _ ->
+      Right $ decrementTx scriptRegistry ownVerificationKey headId headParameters headUTxO snapshot signatures
+ where
+  headScript = fromPlutusScript @PlutusScriptV2 Head.validatorScript
+
+  ChainContext{ownVerificationKey, scriptRegistry} = ctx
+  Snapshot{utxoToDecommit} = snapshot
+
 -- | Construct a close transaction spending the head output in given 'UTxO',
 -- head parameters, and a confirmed snapshot. NOTE: Lower and upper bound slot
 -- difference should not exceed contestation period.
@@ -478,8 +518,10 @@ close ::
   SlotNo ->
   -- | 'Tx' validity upper bound
   PointInTime ->
+  -- | Current off-chain snapshot version in coordinated head state
+  SnapshotVersion ->
   Either CloseTxError Tx
-close ctx spendableUTxO headId HeadParameters{parties, contestationPeriod} confirmedSnapshot startSlotNo pointInTime = do
+close ctx spendableUTxO headId HeadParameters{parties, contestationPeriod} confirmedSnapshot startSlotNo pointInTime offChainVersion = do
   pid <- headIdToPolicyId headId ?> InvalidHeadIdInClose{headId}
   headUTxO <-
     UTxO.find (isScriptTxOut headScript) (utxoOfThisHead pid spendableUTxO)
@@ -490,17 +532,19 @@ close ctx spendableUTxO headId HeadParameters{parties, contestationPeriod} confi
           , openContestationPeriod = ContestationPeriod.toChain contestationPeriod
           , openParties = partyToChain <$> parties
           }
-  pure $ closeTx scriptRegistry ownVerificationKey closingSnapshot startSlotNo pointInTime openThreadOutput headId
+  pure $ closeTx scriptRegistry ownVerificationKey closingSnapshot startSlotNo pointInTime openThreadOutput headId offChainVersion
  where
   headScript = fromPlutusScript @PlutusScriptV2 Head.validatorScript
 
   closingSnapshot = case confirmedSnapshot of
     InitialSnapshot{initialUTxO} -> CloseWithInitialSnapshot{openUtxoHash = UTxOHash $ hashUTxO @Tx initialUTxO}
-    ConfirmedSnapshot{snapshot = Snapshot{number, utxo}, signatures} ->
+    ConfirmedSnapshot{snapshot = Snapshot{number, utxo, utxoToDecommit, version}, signatures} ->
       CloseWithConfirmedSnapshot
         { snapshotNumber = number
         , closeUtxoHash = UTxOHash $ hashUTxO @Tx utxo
+        , closeUtxoToDecommitHash = UTxOHash $ hashUTxO @Tx $ fromMaybe mempty utxoToDecommit
         , signatures
+        , version
         }
 
   ChainContext{ownVerificationKey, scriptRegistry} = ctx
@@ -517,14 +561,15 @@ contest ::
   ConfirmedSnapshot Tx ->
   -- | Current slot and posix time to be used as the contestation time.
   PointInTime ->
+  SnapshotVersion ->
   Either ContestTxError Tx
-contest ctx spendableUTxO headId contestationPeriod confirmedSnapshot pointInTime = do
+contest ctx spendableUTxO headId contestationPeriod confirmedSnapshot pointInTime offChainVersion = do
   pid <- headIdToPolicyId headId ?> InvalidHeadIdInContest{headId}
   headUTxO <-
     UTxO.find (isScriptTxOut headScript) (utxoOfThisHead pid spendableUTxO)
       ?> CannotFindHeadOutputToContest
   closedThreadOutput <- checkHeadDatum headUTxO
-  pure $ contestTx scriptRegistry ownVerificationKey sn sigs pointInTime closedThreadOutput headId contestationPeriod
+  pure $ contestTx scriptRegistry ownVerificationKey sn sigs pointInTime closedThreadOutput headId contestationPeriod offChainVersion
  where
   checkHeadDatum headUTxO@(_, headOutput) = do
     headDatum <- txOutScriptData (toTxContext headOutput) ?> MissingHeadDatumInContest
@@ -564,17 +609,19 @@ fanout ::
   TxIn ->
   -- | Snapshot UTxO to fanout
   UTxO ->
+  -- | Snapshot UTxO to decommit to fanout
+  Maybe UTxO ->
   -- | Contestation deadline as SlotNo, used to set lower tx validity bound.
   SlotNo ->
   Either FanoutTxError Tx
-fanout ctx spendableUTxO seedTxIn utxo deadlineSlotNo = do
+fanout ctx spendableUTxO seedTxIn utxo utxoToDecommit deadlineSlotNo = do
   headUTxO <-
     UTxO.find (isScriptTxOut headScript) (utxoOfThisHead (headPolicyId seedTxIn) spendableUTxO)
       ?> CannotFindHeadOutputToFanout
 
   closedThreadUTxO <- checkHeadDatum headUTxO
 
-  pure $ fanoutTx scriptRegistry utxo closedThreadUTxO deadlineSlotNo headTokenScript
+  pure $ fanoutTx scriptRegistry utxo utxoToDecommit closedThreadUTxO deadlineSlotNo headTokenScript
  where
   headTokenScript = mkHeadTokenScript seedTxIn
 
@@ -767,6 +814,7 @@ genChainStateWithTx =
     [ genInitWithState
     , genAbortWithState
     , genCommitWithState
+    , genDecrementWithState
     , genCollectWithState
     , genCloseWithState
     , genContestWithState
@@ -804,6 +852,11 @@ genChainStateWithTx =
   genCollectWithState = do
     (ctx, _, st, tx) <- genCollectComTx
     pure (ctx, Initial st, tx, Collect)
+
+  genDecrementWithState :: Gen (ChainContext, ChainState, Tx, ChainTransition)
+  genDecrementWithState = do
+    (ctx, st, tx) <- genDecrementTx maxGenParties
+    pure (ctx, Open st, tx, Decrement)
 
   genCloseWithState :: Gen (ChainContext, ChainState, Tx, ChainTransition)
   genCloseWithState = do
@@ -958,18 +1011,10 @@ genCommits' genUTxO ctx txInit = do
     valueFromList . map (\(an, Quantity q) -> (an, Quantity $ q `div` fromIntegral x)) . valueToList
 
 genCommitFor :: VerificationKey PaymentKey -> Gen UTxO
-genCommitFor vkey =
-  frequency
-    [ (1, pure mempty)
-    , (10, genOneUTxOFor vkey)
-    ]
+genCommitFor = genOneUTxOFor
 
 genCommit :: Gen UTxO
-genCommit =
-  frequency
-    [ (1, pure mempty)
-    , (10, genVerificationKey >>= genOneUTxOFor)
-    ]
+genCommit = genVerificationKey >>= genOneUTxOFor
 
 genCollectComTx :: Gen (ChainContext, [UTxO], InitialState, Tx)
 genCollectComTx = do
@@ -983,43 +1028,70 @@ genCollectComTx = do
   let spendableUTxO = getKnownUTxO stInitialized
   pure (cctx, committedUTxO, stInitialized, unsafeCollect cctx headId (ctxHeadParameters ctx) utxoToCollect spendableUTxO)
 
+genDecrementTx :: Int -> Gen (ChainContext, OpenState, Tx)
+genDecrementTx numParties = do
+  ctx <- genHydraContextFor numParties
+  (u0, stOpen@OpenState{headId}) <- genStOpen ctx
+  cctx <- pickChainContext ctx
+  let version = 0
+  snapshot <- do
+    number <- getPositive <$> arbitrary
+    let (utxo, toDecommit) = splitUTxO u0
+    pure Snapshot{headId, number, confirmed = [], utxo, utxoToDecommit = Just toDecommit, version}
+  let signatures = aggregate $ fmap (`sign` snapshot) (ctxHydraSigningKeys ctx)
+  let openUTxO = getKnownUTxO stOpen
+  pure (cctx, stOpen, unsafeDecrement cctx headId (ctxHeadParameters ctx) openUTxO snapshot signatures)
+
+splitUTxO :: UTxO -> (UTxO, UTxO)
+splitUTxO utxo =
+  let pairs = UTxO.pairs utxo
+   in case uncons $ List.filter ((> 0) . selectLovelace . txOutValue . snd) pairs of
+        Nothing -> (mempty, mempty)
+        Just (toDecommit, rest) -> (UTxO.fromPairs rest, UTxO.singleton toDecommit)
+
 genCloseTx :: Int -> Gen (ChainContext, OpenState, Tx, ConfirmedSnapshot Tx)
 genCloseTx numParties = do
   ctx <- genHydraContextFor numParties
   (u0, stOpen@OpenState{headId}) <- genStOpen ctx
-  snapshot <- genConfirmedSnapshot headId 0 u0 (ctxHydraSigningKeys ctx)
+  let (confirmedUtxo, utxoToDecommit) = splitUTxO u0
+  let version = 0
+  snapshot <- genConfirmedSnapshot headId 1 version confirmedUtxo (Just utxoToDecommit) (ctxHydraSigningKeys ctx)
   cctx <- pickChainContext ctx
   let cp = ctxContestationPeriod ctx
   (startSlot, pointInTime) <- genValidityBoundsFromContestationPeriod cp
   let utxo = getKnownUTxO stOpen
-  pure (cctx, stOpen, unsafeClose cctx utxo headId (ctxHeadParameters ctx) snapshot startSlot pointInTime, snapshot)
+  pure (cctx, stOpen, unsafeClose cctx utxo headId (ctxHeadParameters ctx) snapshot startSlot pointInTime version, snapshot)
 
 genContestTx :: Gen (HydraContext, PointInTime, ClosedState, Tx)
 genContestTx = do
   ctx <- genHydraContextFor maximumNumberOfParties
   (u0, stOpen@OpenState{headId}) <- genStOpen ctx
-  confirmed <- genConfirmedSnapshot headId 0 u0 []
+  let (confirmedUtXO, utxoToDecommit) = splitUTxO u0
+  let version = 1
+  confirmed <- genConfirmedSnapshot headId 1 version confirmedUtXO (Just utxoToDecommit) []
   cctx <- pickChainContext ctx
   let cp = ctxContestationPeriod ctx
   (startSlot, closePointInTime) <- genValidityBoundsFromContestationPeriod cp
   let openUTxO = getKnownUTxO stOpen
-  let txClose = unsafeClose cctx openUTxO headId (ctxHeadParameters ctx) confirmed startSlot closePointInTime
+  let txClose = unsafeClose cctx openUTxO headId (ctxHeadParameters ctx) confirmed startSlot closePointInTime version
   let stClosed = snd $ fromJust $ observeClose stOpen txClose
   let utxo = getKnownUTxO stClosed
-  someUtxo <- arbitrary
-  contestSnapshot <- genConfirmedSnapshot headId (succ $ number $ getSnapshot confirmed) someUtxo (ctxHydraSigningKeys ctx)
+  someUtxo <- genUTxO1 genTxOut
+  let (confirmedUTxO', utxoToDecommit') = splitUTxO someUtxo
+  contestSnapshot <- genConfirmedSnapshot headId (succ $ number $ getSnapshot confirmed) version confirmedUTxO' (Just utxoToDecommit') (ctxHydraSigningKeys ctx)
   contestPointInTime <- genPointInTimeBefore (getContestationDeadline stClosed)
-  pure (ctx, closePointInTime, stClosed, unsafeContest cctx utxo headId cp contestSnapshot contestPointInTime)
+  pure (ctx, closePointInTime, stClosed, unsafeContest cctx utxo headId cp contestSnapshot contestPointInTime version)
 
 genFanoutTx :: Int -> Int -> Gen (HydraContext, ClosedState, Tx)
 genFanoutTx numParties numOutputs = do
   ctx <- genHydraContext numParties
   utxo <- genUTxOAdaOnlyOfSize numOutputs
-  (_, toFanout, stClosed@ClosedState{seedTxIn}) <- genStClosed ctx utxo
+  let (inHead', toDecommit') = splitUTxO utxo
+  (_, toFanout, toDecommit, stClosed@ClosedState{seedTxIn}) <- genStClosed ctx inHead' (Just toDecommit')
   cctx <- pickChainContext ctx
   let deadlineSlotNo = slotNoFromUTCTime systemStart slotLength (getContestationDeadline stClosed)
       spendableUTxO = getKnownUTxO stClosed
-  pure (ctx, stClosed, unsafeFanout cctx spendableUTxO seedTxIn toFanout deadlineSlotNo)
+  pure (ctx, stClosed, unsafeFanout cctx spendableUTxO seedTxIn toFanout toDecommit deadlineSlotNo)
 
 getContestationDeadline :: ClosedState -> UTCTime
 getContestationDeadline
@@ -1038,35 +1110,40 @@ genStOpen ctx = do
   let utxoToCollect = fold committed
   let spendableUTxO = getKnownUTxO stInitial
   let txCollect = unsafeCollect cctx headId (ctxHeadParameters ctx) utxoToCollect spendableUTxO
-  pure (fold committed, snd . fromJust $ observeCollect stInitial txCollect)
+  pure (utxoToCollect, snd . fromJust $ observeCollect stInitial txCollect)
 
 genStClosed ::
   HydraContext ->
   UTxO ->
-  Gen (SnapshotNumber, UTxO, ClosedState)
-genStClosed ctx utxo = do
+  Maybe UTxO ->
+  Gen (SnapshotNumber, UTxO, Maybe UTxO, ClosedState)
+genStClosed ctx utxo utxoToDecommit = do
   (u0, stOpen@OpenState{headId}) <- genStOpen ctx
   confirmed <- arbitrary
-  let (sn, snapshot, toFanout) = case confirmed of
+  let (sn, snapshot, toFanout, toDecommit, v) = case confirmed of
         InitialSnapshot{} ->
           ( 0
           , InitialSnapshot{headId, initialUTxO = u0}
           , u0
+          , Nothing
+          , 0
           )
         ConfirmedSnapshot{snapshot = snap, signatures} ->
           ( number snap
           , ConfirmedSnapshot
-              { snapshot = snap{utxo = utxo}
+              { snapshot = snap{utxo = utxo, utxoToDecommit}
               , signatures
               }
           , utxo
+          , utxoToDecommit
+          , Hydra.Snapshot.version snap
           )
   cctx <- pickChainContext ctx
   let cp = ctxContestationPeriod ctx
   (startSlot, pointInTime) <- genValidityBoundsFromContestationPeriod cp
   let utxo' = getKnownUTxO stOpen
-  let txClose = unsafeClose cctx utxo' headId (ctxHeadParameters ctx) snapshot startSlot pointInTime
-  pure (sn, toFanout, snd . fromJust $ observeClose stOpen txClose)
+  let txClose = unsafeClose cctx utxo' headId (ctxHeadParameters ctx) snapshot startSlot pointInTime v
+  pure (sn, toFanout, toDecommit, snd . fromJust $ observeClose stOpen txClose)
 
 -- ** Danger zone
 
@@ -1095,6 +1172,19 @@ unsafeAbort ::
 unsafeAbort ctx seedTxIn spendableUTxO committedUTxO =
   either (error . show) id $ abort ctx seedTxIn spendableUTxO committedUTxO
 
+unsafeDecrement ::
+  HasCallStack =>
+  ChainContext ->
+  HeadId ->
+  HeadParameters ->
+  -- | Spendable 'UTxO'
+  UTxO ->
+  Snapshot Tx ->
+  MultiSignature (Snapshot Tx) ->
+  Tx
+unsafeDecrement ctx headId parameters spendableUTxO snapshot signatures =
+  either (error . show) id $ decrement ctx headId parameters spendableUTxO snapshot signatures
+
 unsafeClose ::
   HasCallStack =>
   ChainContext ->
@@ -1107,9 +1197,10 @@ unsafeClose ::
   SlotNo ->
   -- | 'Tx' validity upper bound
   PointInTime ->
+  SnapshotVersion ->
   Tx
-unsafeClose ctx spendableUTxO headId headParameters confirmedSnapshot startSlotNo pointInTime =
-  either (error . show) id $ close ctx spendableUTxO headId headParameters confirmedSnapshot startSlotNo pointInTime
+unsafeClose ctx spendableUTxO headId headParameters confirmedSnapshot startSlotNo pointInTime version =
+  either (error . show) id $ close ctx spendableUTxO headId headParameters confirmedSnapshot startSlotNo pointInTime version
 
 unsafeCollect ::
   ChainContext ->
@@ -1133,9 +1224,10 @@ unsafeContest ::
   ContestationPeriod ->
   ConfirmedSnapshot Tx ->
   PointInTime ->
+  SnapshotVersion ->
   Tx
-unsafeContest ctx spendableUTxO headId contestationPeriod confirmedSnapshot pointInTime =
-  either (error . show) id $ contest ctx spendableUTxO headId contestationPeriod confirmedSnapshot pointInTime
+unsafeContest ctx spendableUTxO headId contestationPeriod confirmedSnapshot pointInTime version =
+  either (error . show) id $ contest ctx spendableUTxO headId contestationPeriod confirmedSnapshot pointInTime version
 
 unsafeFanout ::
   HasCallStack =>
@@ -1146,11 +1238,13 @@ unsafeFanout ::
   TxIn ->
   -- | Snapshot UTxO to fanout
   UTxO ->
+  -- | Snapshot decommit UTxO to fanout
+  Maybe UTxO ->
   -- | Contestation deadline as SlotNo, used to set lower tx validity bound.
   SlotNo ->
   Tx
-unsafeFanout ctx spendableUTxO seedTxIn utxo deadlineSlotNo =
-  either (error . show) id $ fanout ctx spendableUTxO seedTxIn utxo deadlineSlotNo
+unsafeFanout ctx spendableUTxO seedTxIn utxo utxoToDecommit deadlineSlotNo =
+  either (error . show) id $ fanout ctx spendableUTxO seedTxIn utxo utxoToDecommit deadlineSlotNo
 
 unsafeObserveInit ::
   HasCallStack =>

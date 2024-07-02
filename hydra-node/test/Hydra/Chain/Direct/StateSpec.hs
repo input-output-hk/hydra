@@ -26,6 +26,7 @@ import Hydra.Cardano.Api (
   modifyTxOutAddress,
   modifyTxOutValue,
   scriptPolicyId,
+  selectLovelace,
   toPlutusCurrencySymbol,
   toScriptData,
   txInputSet,
@@ -68,6 +69,7 @@ import Hydra.Chain.Direct.State (
   genCommits,
   genCommits',
   genContestTx,
+  genDecrementTx,
   genFanoutTx,
   genHydraContext,
   genInitTx,
@@ -79,6 +81,7 @@ import Hydra.Chain.Direct.State (
   observeCollect,
   observeCommit,
   pickChainContext,
+  splitUTxO,
   unsafeAbort,
   unsafeClose,
   unsafeCollect,
@@ -87,20 +90,7 @@ import Hydra.Chain.Direct.State (
   unsafeObserveInitAndCommits,
  )
 import Hydra.Chain.Direct.State qualified as Transition
-import Hydra.Chain.Direct.Tx (
-  AbortObservation (..),
-  CloseObservation (..),
-  ClosedThreadOutput (closedContesters),
-  CollectComObservation (..),
-  CommitObservation (..),
-  ContestObservation (..),
-  FanoutObservation (..),
-  HeadObservation (..),
-  NotAnInitReason (..),
-  observeCommitTx,
-  observeHeadTx,
-  observeInitTx,
- )
+import Hydra.Chain.Direct.Tx (AbortObservation (..), CloseObservation (..), ClosedThreadOutput (closedContesters), CollectComObservation (..), CommitObservation (..), ContestObservation (..), DecrementObservation (..), FanoutObservation (..), HeadObservation (..), NotAnInitReason (..), observeCommitTx, observeHeadTx, observeInitTx)
 import Hydra.ContestationPeriod (toNominalDiffTime)
 import Hydra.Contract.HeadTokens qualified as HeadTokens
 import Hydra.Contract.Initial qualified as Initial
@@ -136,6 +126,7 @@ import Test.QuickCheck (
   forAll,
   forAllBlind,
   forAllShow,
+  forAllShrink,
   getPositive,
   label,
   sized,
@@ -158,6 +149,9 @@ spec = parallel $ do
 
   describe "observeTx" $ do
     prop "All valid transitions for all possible states can be observed." prop_observeAnyTx
+
+  describe "splitUTxO" $ do
+    prop "splitUTxO works" prop_splitUTxO
 
   describe "init" $ do
     propBelowSizeLimit maxTxSize forAllInit
@@ -320,6 +314,10 @@ spec = parallel $ do
     propBelowSizeLimit maxTxSize forAllCollectCom
     propIsValid forAllCollectCom
 
+  describe "decrement" $ do
+    propBelowSizeLimit maxTxSize forAllDecrement
+    propIsValid forAllDecrement
+
   describe "close" $ do
     propBelowSizeLimit maxTxSize forAllClose
     propIsValid forAllClose
@@ -414,6 +412,7 @@ prop_observeAnyTx =
             Commit CommitObservation{headId} -> transition === Transition.Commit .&&. Just headId === expectedHeadId
             Abort AbortObservation{headId} -> transition === Transition.Abort .&&. Just headId === expectedHeadId
             CollectCom CollectComObservation{headId} -> transition === Transition.Collect .&&. Just headId === expectedHeadId
+            Decrement DecrementObservation{headId} -> transition === Transition.Decrement .&&. Just headId === expectedHeadId
             Close CloseObservation{headId} -> transition === Transition.Close .&&. Just headId === expectedHeadId
             Contest ContestObservation{headId} -> transition === Transition.Contest .&&. Just headId === expectedHeadId
             Fanout FanoutObservation{headId} -> transition === Transition.Fanout .&&. Just headId === expectedHeadId
@@ -425,6 +424,14 @@ prop_observeAnyTx =
     Initial InitialState{headId} -> Just headId
     Open OpenState{headId} -> Just headId
     Closed ClosedState{headId} -> Just headId
+
+prop_splitUTxO :: UTxO -> Property
+prop_splitUTxO utxo =
+  let (inHead, toDecommit) = splitUTxO utxo
+      getLovelace a =
+        sum $ selectLovelace . txOutValue . snd <$> UTxO.pairs a
+   in getLovelace utxo === getLovelace (inHead <> toDecommit)
+        .&&. UTxO.difference (inHead <> toDecommit) utxo === mempty
 
 prop_canCloseFanoutEveryCollect :: Property
 prop_canCloseFanoutEveryCollect = monadicST $ do
@@ -445,13 +452,13 @@ prop_canCloseFanoutEveryCollect = monadicST $ do
   -- Close
   (closeLower, closeUpper) <- pickBlind $ genValidityBoundsFromContestationPeriod ctxContestationPeriod
   let closeUTxO = getKnownUTxO stOpen
-      txClose = unsafeClose cctx closeUTxO headId (ctxHeadParameters ctx) InitialSnapshot{headId, initialUTxO} closeLower closeUpper
+      txClose = unsafeClose cctx closeUTxO headId (ctxHeadParameters ctx) InitialSnapshot{headId, initialUTxO} closeLower closeUpper 0
   (deadline, stClosed) <- case observeClose stOpen txClose of
     Just (OnCloseTx{contestationDeadline}, st) -> pure (contestationDeadline, st)
     _ -> fail "not observed close"
   -- Fanout
   let fanoutUTxO = getKnownUTxO stClosed
-  let txFanout = unsafeFanout cctx fanoutUTxO seedTxIn initialUTxO (slotNoFromUTCTime systemStart slotLength deadline)
+  let txFanout = unsafeFanout cctx fanoutUTxO seedTxIn initialUTxO Nothing (slotNoFromUTCTime systemStart slotLength deadline)
 
   -- Properties
   let collectFails =
@@ -584,6 +591,15 @@ forAllCollectCom action =
     let utxo = getKnownUTxO stInitialized <> getKnownUTxO ctx
      in action utxo tx
           & counterexample ("Committed UTxO: " <> show committedUTxO)
+
+forAllDecrement ::
+  Testable property =>
+  (UTxO -> Tx -> property) ->
+  Property
+forAllDecrement action = do
+  forAllShrink (genDecrementTx maximumNumberOfParties) shrink $ \(ctx, st, tx) ->
+    let utxo = getKnownUTxO st <> getKnownUTxO ctx
+     in action utxo tx
 
 forAllClose ::
   Testable property =>
