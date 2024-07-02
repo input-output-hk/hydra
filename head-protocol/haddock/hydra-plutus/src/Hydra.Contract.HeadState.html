@@ -1,0 +1,118 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DuplicateRecordFields #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE TemplateHaskell #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -fno-specialize #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Hydra.Contract.HeadState</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">PlutusTx.Prelude</span></span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Generics.html"><span class="hs-identifier">GHC.Generics</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Generics.html#Generic"><span class="hs-identifier">Generic</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Hydra.Data.ContestationPeriod.html"><span class="hs-identifier">Hydra.Data.ContestationPeriod</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.Data.ContestationPeriod.html#ContestationPeriod"><span class="hs-identifier">ContestationPeriod</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Hydra.Data.Party.html"><span class="hs-identifier">Hydra.Data.Party</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.Data.Party.html#Party"><span class="hs-identifier">Party</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">PlutusLedgerApi.V2</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">CurrencySymbol</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">POSIXTime</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">PubKeyHash</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">TxOutRef</span></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">PlutusTx</span></span><span> </span><span class="hs-keyword">qualified</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/Text.Show.html"><span class="hs-identifier">Text.Show</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Show.html#Show"><span class="hs-identifier">Show</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">type</span><span> </span><span id="SnapshotNumber"><span class="annot"><a href="Hydra.Contract.HeadState.html#SnapshotNumber"><span class="hs-identifier hs-var">SnapshotNumber</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/ghc-bignum-1.3/src/GHC.Num.Integer.html#Integer"><span class="hs-identifier hs-type">Integer</span></a></span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">type</span><span> </span><span id="Hash"><span class="annot"><a href="Hydra.Contract.HeadState.html#Hash"><span class="hs-identifier hs-var">Hash</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BuiltinByteString</span></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">type</span><span> </span><span id="Signature"><span class="annot"><a href="Hydra.Contract.HeadState.html#Signature"><span class="hs-identifier hs-var">Signature</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BuiltinByteString</span></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">data</span><span> </span><span id="State"><span class="annot"><a href="Hydra.Contract.HeadState.html#State"><span class="hs-identifier hs-var">State</span></a></span></span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="Initial"><span class="annot"><a href="Hydra.Contract.HeadState.html#Initial"><span class="hs-identifier hs-var">Initial</span></a></span></span><span>
+</span><span id="line-24"></span><span>      </span><span class="hs-special">{</span><span> </span><span id="%24sel%3AcontestationPeriod%3AInitial"><span class="annot"><span class="annottext">State -&gt; ContestationPeriod
+</span><a href="Hydra.Contract.HeadState.html#%24sel%3AcontestationPeriod%3AInitial"><span class="hs-identifier hs-var hs-var">contestationPeriod</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Hydra.Data.ContestationPeriod.html#ContestationPeriod"><span class="hs-identifier hs-type">ContestationPeriod</span></a></span><span>
+</span><span id="line-25"></span><span>      </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Aparties%3AInitial"><span class="annot"><span class="annottext">State -&gt; [Party]
+</span><a href="Hydra.Contract.HeadState.html#%24sel%3Aparties%3AInitial"><span class="hs-identifier hs-var hs-var">parties</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Hydra.Data.Party.html#Party"><span class="hs-identifier hs-type">Party</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-26"></span><span>      </span><span class="hs-special">,</span><span> </span><span id="%24sel%3AheadId%3AInitial"><span class="annot"><span class="annottext">State -&gt; CurrencySymbol
+</span><a href="Hydra.Contract.HeadState.html#%24sel%3AheadId%3AInitial"><span class="hs-identifier hs-var hs-var">headId</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CurrencySymbol</span></span><span>
+</span><span id="line-27"></span><span>      </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Aseed%3AInitial"><span class="annot"><span class="annottext">State -&gt; TxOutRef
+</span><a href="Hydra.Contract.HeadState.html#%24sel%3Aseed%3AInitial"><span class="hs-identifier hs-var hs-var">seed</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TxOutRef</span></span><span>
+</span><span id="line-28"></span><span>      </span><span class="hs-special">}</span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Open"><span class="annot"><a href="Hydra.Contract.HeadState.html#Open"><span class="hs-identifier hs-var">Open</span></a></span></span><span>
+</span><span id="line-30"></span><span>      </span><span class="hs-special">{</span><span> </span><span id="%24sel%3AcontestationPeriod%3AInitial"><span class="annot"><a href="Hydra.Contract.HeadState.html#%24sel%3AcontestationPeriod%3AInitial"><span class="hs-identifier hs-var">contestationPeriod</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Hydra.Data.ContestationPeriod.html#ContestationPeriod"><span class="hs-identifier hs-type">ContestationPeriod</span></a></span><span>
+</span><span id="line-31"></span><span>      </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Aparties%3AInitial"><span class="annot"><a href="Hydra.Contract.HeadState.html#%24sel%3Aparties%3AInitial"><span class="hs-identifier hs-var">parties</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Hydra.Data.Party.html#Party"><span class="hs-identifier hs-type">Party</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-32"></span><span>      </span><span class="hs-special">,</span><span> </span><span id="%24sel%3AutxoHash%3AInitial"><span class="annot"><span class="annottext">State -&gt; Hash
+</span><a href="Hydra.Contract.HeadState.html#%24sel%3AutxoHash%3AInitial"><span class="hs-identifier hs-var hs-var">utxoHash</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Hydra.Contract.HeadState.html#Hash"><span class="hs-identifier hs-type">Hash</span></a></span><span>
+</span><span id="line-33"></span><span>      </span><span class="hs-special">,</span><span> </span><span id="%24sel%3AheadId%3AInitial"><span class="annot"><a href="Hydra.Contract.HeadState.html#%24sel%3AheadId%3AInitial"><span class="hs-identifier hs-var">headId</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CurrencySymbol</span></span><span>
+</span><span id="line-34"></span><span>      </span><span class="hs-special">}</span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Closed"><span class="annot"><a href="Hydra.Contract.HeadState.html#Closed"><span class="hs-identifier hs-var">Closed</span></a></span></span><span>
+</span><span id="line-36"></span><span>      </span><span class="hs-special">{</span><span> </span><span id="%24sel%3Aparties%3AInitial"><span class="annot"><a href="Hydra.Contract.HeadState.html#%24sel%3Aparties%3AInitial"><span class="hs-identifier hs-var">parties</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Hydra.Data.Party.html#Party"><span class="hs-identifier hs-type">Party</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-37"></span><span>      </span><span class="hs-special">,</span><span> </span><span id="%24sel%3AsnapshotNumber%3AInitial"><span class="annot"><span class="annottext">State -&gt; SnapshotNumber
+</span><a href="Hydra.Contract.HeadState.html#%24sel%3AsnapshotNumber%3AInitial"><span class="hs-identifier hs-var hs-var">snapshotNumber</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Hydra.Contract.HeadState.html#SnapshotNumber"><span class="hs-identifier hs-type">SnapshotNumber</span></a></span><span>
+</span><span id="line-38"></span><span>      </span><span class="hs-special">,</span><span> </span><span id="%24sel%3AutxoHash%3AInitial"><span class="annot"><a href="Hydra.Contract.HeadState.html#%24sel%3AutxoHash%3AInitial"><span class="hs-identifier hs-var">utxoHash</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Hydra.Contract.HeadState.html#Hash"><span class="hs-identifier hs-type">Hash</span></a></span><span>
+</span><span id="line-39"></span><span>      </span><span class="hs-special">,</span><span> </span><span id="%24sel%3AcontestationDeadline%3AInitial"><span class="annot"><span class="annottext">State -&gt; POSIXTime
+</span><a href="Hydra.Contract.HeadState.html#%24sel%3AcontestationDeadline%3AInitial"><span class="hs-identifier hs-var hs-var">contestationDeadline</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">POSIXTime</span></span><span>
+</span><span id="line-40"></span><span>      </span><span class="hs-special">,</span><span> </span><span id="%24sel%3AcontestationPeriod%3AInitial"><span class="annot"><a href="Hydra.Contract.HeadState.html#%24sel%3AcontestationPeriod%3AInitial"><span class="hs-identifier hs-var">contestationPeriod</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Hydra.Data.ContestationPeriod.html#ContestationPeriod"><span class="hs-identifier hs-type">ContestationPeriod</span></a></span><span>
+</span><span id="line-41"></span><span>      </span><span class="hs-special">,</span><span> </span><span id="%24sel%3AheadId%3AInitial"><span class="annot"><a href="Hydra.Contract.HeadState.html#%24sel%3AheadId%3AInitial"><span class="hs-identifier hs-var">headId</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CurrencySymbol</span></span><span>
+</span><span id="line-42"></span><span>      </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Acontesters%3AInitial"><span class="annot"><span class="annottext">State -&gt; [PubKeyHash]
+</span><a href="Hydra.Contract.HeadState.html#%24sel%3Acontesters%3AInitial"><span class="hs-identifier hs-var hs-var">contesters</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">PubKeyHash</span></span><span class="hs-special">]</span><span>
+</span><span id="line-43"></span><span>      </span><span class="hs-special">}</span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Final"><span class="annot"><a href="Hydra.Contract.HeadState.html#Final"><span class="hs-identifier hs-var">Final</span></a></span></span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679435441"><span id="local-6989586621679435443"><span class="annot"><span class="annottext">(forall x. State -&gt; Rep State x)
+-&gt; (forall x. Rep State x -&gt; State) -&gt; Generic State
+forall x. Rep State x -&gt; State
+forall x. State -&gt; Rep State x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. State -&gt; Rep State x
+from :: forall x. State -&gt; Rep State x
+$cto :: forall x. Rep State x -&gt; State
+to :: forall x. Rep State x -&gt; State
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Generics.html#Generic"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></a></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679435447"><span id="local-6989586621679435477"><span id="local-6989586621679435481"><span class="annot"><span class="annottext">Int -&gt; State -&gt; ShowS
+[State] -&gt; ShowS
+State -&gt; String
+(Int -&gt; State -&gt; ShowS)
+-&gt; (State -&gt; String) -&gt; ([State] -&gt; ShowS) -&gt; Show State
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; State -&gt; ShowS
+showsPrec :: Int -&gt; State -&gt; ShowS
+$cshow :: State -&gt; String
+show :: State -&gt; String
+$cshowList :: [State] -&gt; ShowS
+showList :: [State] -&gt; ShowS
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Show.html#Show"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></a></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span id="local-6989586621679435487"><span id="local-6989586621679435518"><span id="local-6989586621679435520"><span class="hs-identifier">PlutusTx.unstableMakeIsData</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">State</span></span></span></span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">data</span><span> </span><span id="Input"><span class="annot"><a href="Hydra.Contract.HeadState.html#Input"><span class="hs-identifier hs-var">Input</span></a></span></span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="CollectCom"><span class="annot"><a href="Hydra.Contract.HeadState.html#CollectCom"><span class="hs-identifier hs-var">CollectCom</span></a></span></span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Close"><span class="annot"><a href="Hydra.Contract.HeadState.html#Close"><span class="hs-identifier hs-var">Close</span></a></span></span><span>
+</span><span id="line-52"></span><span>      </span><span class="hs-special">{</span><span> </span><span id="%24sel%3Asignature%3ACollectCom"><span class="annot"><span class="annottext">Input -&gt; [Hash]
+</span><a href="Hydra.Contract.HeadState.html#%24sel%3Asignature%3ACollectCom"><span class="hs-keyword hs-var hs-var">signature</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Hydra.Contract.HeadState.html#Signature"><span class="hs-identifier hs-type">Signature</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-53"></span><span>      </span><span class="hs-special">}</span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Contest"><span class="annot"><a href="Hydra.Contract.HeadState.html#Contest"><span class="hs-identifier hs-var">Contest</span></a></span></span><span>
+</span><span id="line-55"></span><span>      </span><span class="hs-special">{</span><span> </span><span id="%24sel%3Asignature%3ACollectCom"><span class="annot"><a href="Hydra.Contract.HeadState.html#%24sel%3Asignature%3ACollectCom"><span class="hs-keyword hs-var">signature</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Hydra.Contract.HeadState.html#Signature"><span class="hs-identifier hs-type">Signature</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-56"></span><span>      </span><span class="hs-special">}</span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Abort"><span class="annot"><a href="Hydra.Contract.HeadState.html#Abort"><span class="hs-identifier hs-var">Abort</span></a></span></span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Fanout"><span class="annot"><a href="Hydra.Contract.HeadState.html#Fanout"><span class="hs-identifier hs-var">Fanout</span></a></span></span><span> </span><span class="hs-special">{</span><span id="%24sel%3AnumberOfFanoutOutputs%3ACollectCom"><span class="annot"><span class="annottext">Input -&gt; SnapshotNumber
+</span><a href="Hydra.Contract.HeadState.html#%24sel%3AnumberOfFanoutOutputs%3ACollectCom"><span class="hs-identifier hs-var hs-var">numberOfFanoutOutputs</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/ghc-bignum-1.3/src/GHC.Num.Integer.html#Integer"><span class="hs-identifier hs-type">Integer</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679435665"><span id="local-6989586621679435667"><span class="annot"><span class="annottext">(forall x. Input -&gt; Rep Input x)
+-&gt; (forall x. Rep Input x -&gt; Input) -&gt; Generic Input
+forall x. Rep Input x -&gt; Input
+forall x. Input -&gt; Rep Input x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. Input -&gt; Rep Input x
+from :: forall x. Input -&gt; Rep Input x
+$cto :: forall x. Rep Input x -&gt; Input
+to :: forall x. Rep Input x -&gt; Input
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Generics.html#Generic"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></a></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679435670"><span id="local-6989586621679435679"><span id="local-6989586621679435683"><span class="annot"><span class="annottext">Int -&gt; Input -&gt; ShowS
+[Input] -&gt; ShowS
+Input -&gt; String
+(Int -&gt; Input -&gt; ShowS)
+-&gt; (Input -&gt; String) -&gt; ([Input] -&gt; ShowS) -&gt; Show Input
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Input -&gt; ShowS
+showsPrec :: Int -&gt; Input -&gt; ShowS
+$cshow :: Input -&gt; String
+show :: Input -&gt; String
+$cshowList :: [Input] -&gt; ShowS
+showList :: [Input] -&gt; ShowS
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Show.html#Show"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></a></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span id="local-6989586621679435686"><span id="local-6989586621679435697"><span id="local-6989586621679435699"><span class="hs-identifier">PlutusTx.unstableMakeIsData</span><span> </span><span class="hs-special">''</span><span class="hs-identifier">Input</span></span></span></span><span>
+</span><span id="line-62"></span></pre></body></html>

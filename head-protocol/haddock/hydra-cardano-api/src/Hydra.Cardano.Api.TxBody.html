@@ -1,0 +1,271 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Hydra.Cardano.Api.TxBody</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Hydra.Cardano.Api.Prelude.html"><span class="hs-identifier">Hydra.Cardano.Api.Prelude</span></a></span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Cardano.Ledger.Alonzo.TxWits</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Ledger</span></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Cardano.Ledger.Api</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">AlonzoPlutusPurpose</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">AsIndex</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">AsItem</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">PlutusPurpose</span></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Cardano.Ledger.Babbage.Core</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">redeemerPointer</span></span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Cardano.Ledger.BaseTypes</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">strictMaybeToMaybe</span></span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Cardano.Ledger.Core</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Ledger</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Cardano.Ledger.Plutus.Data</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Ledger</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/Data.List.html"><span class="hs-identifier">Data.List</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/Data.Foldable.html#find"><span class="hs-identifier">find</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/containers-0.6.7/src/Data.Map.html"><span class="hs-identifier">Data.Map</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Hydra.Cardano.Api.PlutusScript.html"><span class="hs-identifier">Hydra.Cardano.Api.PlutusScript</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.Cardano.Api.PlutusScript.html#fromLedgerScript"><span class="hs-identifier">fromLedgerScript</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Hydra.Cardano.Api.PolicyId.html"><span class="hs-identifier">Hydra.Cardano.Api.PolicyId</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.Cardano.Api.PolicyId.html#toLedgerPolicyID"><span class="hs-identifier">toLedgerPolicyID</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Hydra.Cardano.Api.PolicyId.html#toLedgerScriptHash"><span class="hs-identifier">toLedgerScriptHash</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Hydra.Cardano.Api.TxIn.html"><span class="hs-identifier">Hydra.Cardano.Api.TxIn</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.Cardano.Api.TxIn.html#toLedgerTxIn"><span class="hs-identifier">toLedgerTxIn</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">PlutusLedgerApi.V2</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Plutus</span></span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- | Find and deserialise from 'ScriptData', a redeemer from the transaction</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- associated to the given input.</span><span>
+</span><span id="line-20"></span><span id="local-6989586621679337411"><span class="annot"><a href="Hydra.Cardano.Api.TxBody.html#findRedeemerSpending"><span class="hs-identifier hs-type">findRedeemerSpending</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-21"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Plutus.FromData</span></span><span> </span><span class="annot"><a href="#local-6989586621679337411"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-22"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Tx</span></span><span> </span><span class="annot"><a href="Hydra.Cardano.Api.Prelude.html#Era"><span class="hs-identifier hs-type">Era</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-23"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">TxIn</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-24"></span><span>  </span><span class="annot"><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679337411"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-25"></span><span id="findRedeemerSpending"><span class="annot"><span class="annottext">findRedeemerSpending :: forall a. FromData a =&gt; Tx Era -&gt; TxIn -&gt; Maybe a
+</span><a href="Hydra.Cardano.Api.TxBody.html#findRedeemerSpending"><span class="hs-identifier hs-var hs-var">findRedeemerSpending</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Tx Era -&gt; TxBody Era
+forall era. Tx era -&gt; TxBody era
+</span><span class="hs-identifier hs-var">getTxBody</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShelleyTxBody</span></span><span> </span><span class="annot"><span class="annottext">ShelleyBasedEra Era
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679337545"><span class="annot"><span class="annottext">TxBody (ShelleyLedgerEra Era)
+</span><a href="#local-6989586621679337545"><span class="hs-identifier hs-var">body</span></a></span></span><span> </span><span class="annot"><span class="annottext">[Script (ShelleyLedgerEra Era)]
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679337546"><span class="annot"><span class="annottext">TxBodyScriptData Era
+</span><a href="#local-6989586621679337546"><span class="hs-identifier hs-var">scriptData</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe (TxAuxData (ShelleyLedgerEra Era))
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">TxScriptValidity Era
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679337547"><span class="annot"><span class="annottext">TxIn
+</span><a href="#local-6989586621679337547"><span class="hs-identifier hs-var">txIn</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-26"></span><span>  </span><span id="local-6989586621679337548"><span class="annot"><span class="annottext">PlutusPurpose AsIndex (BabbageEra StandardCrypto)
+</span><a href="#local-6989586621679337548"><span class="hs-identifier hs-var">ptr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">StrictMaybe (PlutusPurpose AsIndex (BabbageEra StandardCrypto))
+-&gt; Maybe (PlutusPurpose AsIndex (BabbageEra StandardCrypto))
+forall a. StrictMaybe a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">strictMaybeToMaybe</span></span><span> </span><span class="annot"><span class="annottext">(StrictMaybe (PlutusPurpose AsIndex (BabbageEra StandardCrypto))
+ -&gt; Maybe (PlutusPurpose AsIndex (BabbageEra StandardCrypto)))
+-&gt; StrictMaybe (PlutusPurpose AsIndex (BabbageEra StandardCrypto))
+-&gt; Maybe (PlutusPurpose AsIndex (BabbageEra StandardCrypto))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">TxBody (BabbageEra StandardCrypto)
+-&gt; PlutusPurpose AsItem (BabbageEra StandardCrypto)
+-&gt; StrictMaybe (PlutusPurpose AsIndex (BabbageEra StandardCrypto))
+forall era.
+AlonzoEraTxBody era =&gt;
+TxBody era
+-&gt; PlutusPurpose AsItem era
+-&gt; StrictMaybe (PlutusPurpose AsIndex era)
+</span><span class="hs-identifier hs-var">redeemerPointer</span></span><span> </span><span class="annot"><span class="annottext">TxBody (ShelleyLedgerEra Era)
+TxBody (BabbageEra StandardCrypto)
+</span><a href="#local-6989586621679337545"><span class="hs-identifier hs-var">body</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AsItem Word32 (TxIn (EraCrypto (BabbageEra StandardCrypto)))
+-&gt; AlonzoPlutusPurpose AsItem (BabbageEra StandardCrypto)
+AsItem Word32 (TxIn StandardCrypto)
+-&gt; PlutusPurpose AsItem (BabbageEra StandardCrypto)
+forall (f :: * -&gt; * -&gt; *) era.
+f Word32 (TxIn (EraCrypto era)) -&gt; AlonzoPlutusPurpose f era
+</span><span class="hs-identifier hs-var">AlonzoSpending</span></span><span> </span><span class="annot"><span class="annottext">(AsItem Word32 (TxIn StandardCrypto)
+ -&gt; PlutusPurpose AsItem (BabbageEra StandardCrypto))
+-&gt; (TxIn StandardCrypto -&gt; AsItem Word32 (TxIn StandardCrypto))
+-&gt; TxIn StandardCrypto
+-&gt; PlutusPurpose AsItem (BabbageEra StandardCrypto)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">TxIn StandardCrypto -&gt; AsItem Word32 (TxIn StandardCrypto)
+forall ix it. it -&gt; AsItem ix it
+</span><span class="hs-identifier hs-var">AsItem</span></span><span> </span><span class="annot"><span class="annottext">(TxIn StandardCrypto
+ -&gt; PlutusPurpose AsItem (BabbageEra StandardCrypto))
+-&gt; TxIn StandardCrypto
+-&gt; PlutusPurpose AsItem (BabbageEra StandardCrypto)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">TxIn -&gt; TxIn StandardCrypto
+</span><a href="Hydra.Cardano.Api.TxIn.html#toLedgerTxIn"><span class="hs-identifier hs-var">toLedgerTxIn</span></a></span><span> </span><span class="annot"><span class="annottext">TxIn
+</span><a href="#local-6989586621679337547"><span class="hs-identifier hs-var">txIn</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>  </span><span class="annot"><span class="annottext">PlutusPurpose AsIndex (ShelleyLedgerEra Era)
+-&gt; TxBodyScriptData Era -&gt; Maybe a
+forall a.
+FromData a =&gt;
+PlutusPurpose AsIndex (ShelleyLedgerEra Era)
+-&gt; TxBodyScriptData Era -&gt; Maybe a
+</span><a href="Hydra.Cardano.Api.TxBody.html#lookupRedeemer"><span class="hs-identifier hs-var">lookupRedeemer</span></a></span><span> </span><span class="annot"><span class="annottext">PlutusPurpose AsIndex (ShelleyLedgerEra Era)
+PlutusPurpose AsIndex (BabbageEra StandardCrypto)
+</span><a href="#local-6989586621679337548"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">TxBodyScriptData Era
+</span><a href="#local-6989586621679337546"><span class="hs-identifier hs-var">scriptData</span></a></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span id="local-6989586621679337451"><span class="annot"><a href="Hydra.Cardano.Api.TxBody.html#findRedeemerMinting"><span class="hs-identifier hs-type">findRedeemerMinting</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-30"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Plutus.FromData</span></span><span> </span><span class="annot"><a href="#local-6989586621679337451"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-31"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Tx</span></span><span> </span><span class="annot"><a href="Hydra.Cardano.Api.Prelude.html#Era"><span class="hs-identifier hs-type">Era</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-32"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">PolicyId</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-33"></span><span>  </span><span class="annot"><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679337451"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-34"></span><span id="findRedeemerMinting"><span class="annot"><span class="annottext">findRedeemerMinting :: forall a. FromData a =&gt; Tx Era -&gt; PolicyId -&gt; Maybe a
+</span><a href="Hydra.Cardano.Api.TxBody.html#findRedeemerMinting"><span class="hs-identifier hs-var hs-var">findRedeemerMinting</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Tx Era -&gt; TxBody Era
+forall era. Tx era -&gt; TxBody era
+</span><span class="hs-identifier hs-var">getTxBody</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShelleyTxBody</span></span><span> </span><span class="annot"><span class="annottext">ShelleyBasedEra Era
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679337559"><span class="annot"><span class="annottext">TxBody (ShelleyLedgerEra Era)
+</span><a href="#local-6989586621679337559"><span class="hs-identifier hs-var">body</span></a></span></span><span> </span><span class="annot"><span class="annottext">[Script (ShelleyLedgerEra Era)]
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679337560"><span class="annot"><span class="annottext">TxBodyScriptData Era
+</span><a href="#local-6989586621679337560"><span class="hs-identifier hs-var">scriptData</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe (TxAuxData (ShelleyLedgerEra Era))
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">TxScriptValidity Era
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679337561"><span class="annot"><span class="annottext">PolicyId
+</span><a href="#local-6989586621679337561"><span class="hs-identifier hs-var">pid</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-35"></span><span>  </span><span id="local-6989586621679337562"><span class="annot"><span class="annottext">PlutusPurpose AsIndex (BabbageEra StandardCrypto)
+</span><a href="#local-6989586621679337562"><span class="hs-identifier hs-var">ptr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">StrictMaybe (PlutusPurpose AsIndex (BabbageEra StandardCrypto))
+-&gt; Maybe (PlutusPurpose AsIndex (BabbageEra StandardCrypto))
+forall a. StrictMaybe a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">strictMaybeToMaybe</span></span><span> </span><span class="annot"><span class="annottext">(StrictMaybe (PlutusPurpose AsIndex (BabbageEra StandardCrypto))
+ -&gt; Maybe (PlutusPurpose AsIndex (BabbageEra StandardCrypto)))
+-&gt; StrictMaybe (PlutusPurpose AsIndex (BabbageEra StandardCrypto))
+-&gt; Maybe (PlutusPurpose AsIndex (BabbageEra StandardCrypto))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">TxBody (BabbageEra StandardCrypto)
+-&gt; PlutusPurpose AsItem (BabbageEra StandardCrypto)
+-&gt; StrictMaybe (PlutusPurpose AsIndex (BabbageEra StandardCrypto))
+forall era.
+AlonzoEraTxBody era =&gt;
+TxBody era
+-&gt; PlutusPurpose AsItem era
+-&gt; StrictMaybe (PlutusPurpose AsIndex era)
+</span><span class="hs-identifier hs-var">redeemerPointer</span></span><span> </span><span class="annot"><span class="annottext">TxBody (ShelleyLedgerEra Era)
+TxBody (BabbageEra StandardCrypto)
+</span><a href="#local-6989586621679337559"><span class="hs-identifier hs-var">body</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AsItem Word32 (PolicyID (EraCrypto (BabbageEra StandardCrypto)))
+-&gt; AlonzoPlutusPurpose AsItem (BabbageEra StandardCrypto)
+AsItem Word32 (PolicyID StandardCrypto)
+-&gt; PlutusPurpose AsItem (BabbageEra StandardCrypto)
+forall (f :: * -&gt; * -&gt; *) era.
+f Word32 (PolicyID (EraCrypto era)) -&gt; AlonzoPlutusPurpose f era
+</span><span class="hs-identifier hs-var">AlonzoMinting</span></span><span> </span><span class="annot"><span class="annottext">(AsItem Word32 (PolicyID StandardCrypto)
+ -&gt; PlutusPurpose AsItem (BabbageEra StandardCrypto))
+-&gt; (PolicyID StandardCrypto
+    -&gt; AsItem Word32 (PolicyID StandardCrypto))
+-&gt; PolicyID StandardCrypto
+-&gt; PlutusPurpose AsItem (BabbageEra StandardCrypto)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">PolicyID StandardCrypto -&gt; AsItem Word32 (PolicyID StandardCrypto)
+forall ix it. it -&gt; AsItem ix it
+</span><span class="hs-identifier hs-var">AsItem</span></span><span> </span><span class="annot"><span class="annottext">(PolicyID StandardCrypto
+ -&gt; PlutusPurpose AsItem (BabbageEra StandardCrypto))
+-&gt; PolicyID StandardCrypto
+-&gt; PlutusPurpose AsItem (BabbageEra StandardCrypto)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">PolicyId -&gt; PolicyID StandardCrypto
+</span><a href="Hydra.Cardano.Api.PolicyId.html#toLedgerPolicyID"><span class="hs-identifier hs-var">toLedgerPolicyID</span></a></span><span> </span><span class="annot"><span class="annottext">PolicyId
+</span><a href="#local-6989586621679337561"><span class="hs-identifier hs-var">pid</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>  </span><span class="annot"><span class="annottext">PlutusPurpose AsIndex (ShelleyLedgerEra Era)
+-&gt; TxBodyScriptData Era -&gt; Maybe a
+forall a.
+FromData a =&gt;
+PlutusPurpose AsIndex (ShelleyLedgerEra Era)
+-&gt; TxBodyScriptData Era -&gt; Maybe a
+</span><a href="Hydra.Cardano.Api.TxBody.html#lookupRedeemer"><span class="hs-identifier hs-var">lookupRedeemer</span></a></span><span> </span><span class="annot"><span class="annottext">PlutusPurpose AsIndex (ShelleyLedgerEra Era)
+PlutusPurpose AsIndex (BabbageEra StandardCrypto)
+</span><a href="#local-6989586621679337562"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">TxBodyScriptData Era
+</span><a href="#local-6989586621679337560"><span class="hs-identifier hs-var">scriptData</span></a></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="annot"><a href="Hydra.Cardano.Api.TxBody.html#findScriptMinting"><span class="hs-identifier hs-type">findScriptMinting</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679337455"><span class="annot"><a href="#local-6989586621679337455"><span class="hs-identifier hs-type">lang</span></a></span></span><span class="hs-operator">.</span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-41"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Tx</span></span><span> </span><span class="annot"><a href="Hydra.Cardano.Api.Prelude.html#Era"><span class="hs-identifier hs-type">Era</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-42"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">PolicyId</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-43"></span><span>  </span><span class="annot"><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PlutusScript</span></span><span> </span><span class="annot"><a href="#local-6989586621679337455"><span class="hs-identifier hs-type">lang</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span id="findScriptMinting"><span class="annot"><span class="annottext">findScriptMinting :: forall lang. Tx Era -&gt; PolicyId -&gt; Maybe (PlutusScript lang)
+</span><a href="Hydra.Cardano.Api.TxBody.html#findScriptMinting"><span class="hs-identifier hs-var hs-var">findScriptMinting</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Tx Era -&gt; TxBody Era
+forall era. Tx era -&gt; TxBody era
+</span><span class="hs-identifier hs-var">getTxBody</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ShelleyTxBody</span></span><span> </span><span class="annot"><span class="annottext">ShelleyBasedEra Era
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">TxBody (ShelleyLedgerEra Era)
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679337579"><span class="annot"><span class="annottext">[Script (ShelleyLedgerEra Era)]
+</span><a href="#local-6989586621679337579"><span class="hs-identifier hs-var">scripts</span></a></span></span><span> </span><span class="annot"><span class="annottext">TxBodyScriptData Era
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Maybe (TxAuxData (ShelleyLedgerEra Era))
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">TxScriptValidity Era
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679337580"><span class="annot"><span class="annottext">PolicyId
+</span><a href="#local-6989586621679337580"><span class="hs-identifier hs-var">pid</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-45"></span><span>  </span><span class="annot"><span class="annottext">forall era lang.
+(HasCallStack, AlonzoEraScript era) =&gt;
+AlonzoScript era -&gt; PlutusScript lang
+</span><a href="Hydra.Cardano.Api.PlutusScript.html#fromLedgerScript"><span class="hs-identifier hs-var">fromLedgerScript</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679337455"><span class="hs-identifier hs-type">lang</span></a></span><span>
+</span><span id="line-46"></span><span>    </span><span class="annot"><span class="annottext">(AlonzoScript (BabbageEra StandardCrypto) -&gt; PlutusScript lang)
+-&gt; Maybe (AlonzoScript (BabbageEra StandardCrypto))
+-&gt; Maybe (PlutusScript lang)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/Data.Functor.html#%3C%24%3E"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">(AlonzoScript (BabbageEra StandardCrypto) -&gt; Bool)
+-&gt; [AlonzoScript (BabbageEra StandardCrypto)]
+-&gt; Maybe (AlonzoScript (BabbageEra StandardCrypto))
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Maybe a
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/Data.Foldable.html#find"><span class="hs-identifier hs-var">find</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">ScriptHash StandardCrypto -&gt; ScriptHash StandardCrypto -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/ghc-prim-0.10.0/src/GHC.Classes.html#%3D%3D"><span class="hs-operator hs-var">==</span></a></span><span> </span><span class="annot"><span class="annottext">ScriptHash StandardCrypto
+</span><a href="#local-6989586621679337582"><span class="hs-identifier hs-var">needle</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(ScriptHash StandardCrypto -&gt; Bool)
+-&gt; (AlonzoScript (BabbageEra StandardCrypto)
+    -&gt; ScriptHash StandardCrypto)
+-&gt; AlonzoScript (BabbageEra StandardCrypto)
+-&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">forall era.
+EraScript era =&gt;
+Script era -&gt; ScriptHash (EraCrypto era)
+</span><span class="hs-identifier hs-var">Ledger.hashScript</span></span><span> </span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">ShelleyLedgerEra</span></span><span> </span><span class="annot"><a href="Hydra.Cardano.Api.Prelude.html#Era"><span class="hs-identifier hs-type">Era</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[AlonzoScript (BabbageEra StandardCrypto)]
+[Script (ShelleyLedgerEra Era)]
+</span><a href="#local-6989586621679337579"><span class="hs-identifier hs-var">scripts</span></a></span><span>
+</span><span id="line-47"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-48"></span><span>  </span><span id="local-6989586621679337582"><span class="annot"><span class="annottext">needle :: ScriptHash StandardCrypto
+</span><a href="#local-6989586621679337582"><span class="hs-identifier hs-var hs-var">needle</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PolicyId -&gt; ScriptHash StandardCrypto
+</span><a href="Hydra.Cardano.Api.PolicyId.html#toLedgerScriptHash"><span class="hs-identifier hs-var">toLedgerScriptHash</span></a></span><span> </span><span class="annot"><span class="annottext">PolicyId
+</span><a href="#local-6989586621679337580"><span class="hs-identifier hs-var">pid</span></a></span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-comment">--</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- Internals</span><span>
+</span><span id="line-52"></span><span class="hs-comment">--</span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span id="local-6989586621679337450"><span class="annot"><a href="Hydra.Cardano.Api.TxBody.html#lookupRedeemer"><span class="hs-identifier hs-type">lookupRedeemer</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-55"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Plutus.FromData</span></span><span> </span><span class="annot"><a href="#local-6989586621679337450"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-56"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">PlutusPurpose</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">AsIndex</span></span><span> </span><span class="annot"><a href="Hydra.Cardano.Api.Prelude.html#LedgerEra"><span class="hs-identifier hs-type">LedgerEra</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-57"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">TxBodyScriptData</span></span><span> </span><span class="annot"><a href="Hydra.Cardano.Api.Prelude.html#Era"><span class="hs-identifier hs-type">Era</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-58"></span><span>  </span><span class="annot"><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679337450"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-59"></span><span id="lookupRedeemer"><span class="annot"><span class="annottext">lookupRedeemer :: forall a.
+FromData a =&gt;
+PlutusPurpose AsIndex (ShelleyLedgerEra Era)
+-&gt; TxBodyScriptData Era -&gt; Maybe a
+</span><a href="Hydra.Cardano.Api.TxBody.html#lookupRedeemer"><span class="hs-identifier hs-var hs-var">lookupRedeemer</span></a></span></span><span> </span><span id="local-6989586621679337593"><span class="annot"><span class="annottext">PlutusPurpose AsIndex (ShelleyLedgerEra Era)
+</span><a href="#local-6989586621679337593"><span class="hs-identifier hs-var">ptr</span></a></span></span><span> </span><span id="local-6989586621679337594"><span class="annot"><span class="annottext">TxBodyScriptData Era
+</span><a href="#local-6989586621679337594"><span class="hs-identifier hs-var">scriptData</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-special">(</span><span id="local-6989586621679337595"><span class="annot"><span class="annottext">Data (BabbageEra StandardCrypto)
+</span><a href="#local-6989586621679337595"><span class="hs-identifier hs-var">d</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679337596"><span class="annot"><span class="annottext">ExUnits
+</span><a href="#local-6989586621679337596"><span class="hs-identifier hs-var">_exUnits</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">AlonzoPlutusPurpose AsIndex (BabbageEra StandardCrypto)
+-&gt; Map
+     (AlonzoPlutusPurpose AsIndex (BabbageEra StandardCrypto))
+     (Data (BabbageEra StandardCrypto), ExUnits)
+-&gt; Maybe (Data (BabbageEra StandardCrypto), ExUnits)
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Maybe a
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/containers-0.6.7/src/Data.Map.Internal.html#lookup"><span class="hs-identifier hs-var">Map.lookup</span></a></span><span> </span><span class="annot"><span class="annottext">PlutusPurpose AsIndex (ShelleyLedgerEra Era)
+AlonzoPlutusPurpose AsIndex (BabbageEra StandardCrypto)
+</span><a href="#local-6989586621679337593"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Map
+  (AlonzoPlutusPurpose AsIndex (BabbageEra StandardCrypto))
+  (Data (BabbageEra StandardCrypto), ExUnits)
+</span><a href="#local-6989586621679337598"><span class="hs-identifier hs-var">redeemers</span></a></span><span>
+</span><span id="line-61"></span><span>  </span><span class="annot"><span class="annottext">Data -&gt; Maybe a
+forall a. FromData a =&gt; Data -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Plutus.fromData</span></span><span> </span><span class="annot"><span class="annottext">(Data -&gt; Maybe a) -&gt; Data -&gt; Maybe a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">Data (BabbageEra StandardCrypto) -&gt; Data
+forall era. Data era -&gt; Data
+</span><span class="hs-identifier hs-var">Ledger.getPlutusData</span></span><span> </span><span class="annot"><span class="annottext">Data (BabbageEra StandardCrypto)
+</span><a href="#local-6989586621679337595"><span class="hs-identifier hs-var">d</span></a></span><span>
+</span><span id="line-62"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-63"></span><span>  </span><span id="local-6989586621679337598"><span class="annot"><span class="annottext">redeemers :: Map
+  (AlonzoPlutusPurpose AsIndex (BabbageEra StandardCrypto))
+  (Data (BabbageEra StandardCrypto), ExUnits)
+</span><a href="#local-6989586621679337598"><span class="hs-identifier hs-var hs-var">redeemers</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">TxBodyScriptData Era
+</span><a href="#local-6989586621679337594"><span class="hs-identifier hs-var">scriptData</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-64"></span><span>    </span><span class="annot"><span class="annottext">TxBodyScriptData Era
+</span><span class="hs-identifier hs-var">TxBodyNoScriptData</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-65"></span><span>      </span><span class="annot"><span class="annottext">Map
+  (AlonzoPlutusPurpose AsIndex (BabbageEra StandardCrypto))
+  (Data (BabbageEra StandardCrypto), ExUnits)
+forall a. Monoid a =&gt; a
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#mempty"><span class="hs-identifier hs-var">mempty</span></a></span><span>
+</span><span id="line-66"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">TxBodyScriptData</span></span><span> </span><span class="annot"><span class="annottext">AlonzoEraOnwards Era
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">TxDats (ShelleyLedgerEra Era)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ledger.Redeemers</span></span><span> </span><span id="local-6989586621679337610"><span class="annot"><span class="annottext">Map
+  (PlutusPurpose AsIndex (BabbageEra StandardCrypto))
+  (Data (BabbageEra StandardCrypto), ExUnits)
+</span><a href="#local-6989586621679337610"><span class="hs-identifier hs-var">rs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-67"></span><span>      </span><span class="annot"><span class="annottext">Map
+  (PlutusPurpose AsIndex (BabbageEra StandardCrypto))
+  (Data (BabbageEra StandardCrypto), ExUnits)
+Map
+  (AlonzoPlutusPurpose AsIndex (BabbageEra StandardCrypto))
+  (Data (BabbageEra StandardCrypto), ExUnits)
+</span><a href="#local-6989586621679337610"><span class="hs-identifier hs-var">rs</span></a></span><span>
+</span><span id="line-68"></span></pre></body></html>
