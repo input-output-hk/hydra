@@ -14,7 +14,7 @@ import Hydra.Prelude
 import Test.Hydra.Prelude
 
 import Hydra.Cardano.Api (
-  AsType (AsPlutusScriptV2, AsScript),
+  AsType (AsPlutusScriptV3, AsScript),
   File (..),
   Script,
   fromPlutusScript,
@@ -64,4 +64,4 @@ goldenScript name plutusScript =
 
   readFromFile fp =
     either (die . show) pure
-      =<< readFileTextEnvelope (AsScript AsPlutusScriptV2) (File fp)
+      =<< readFileTextEnvelope (AsScript AsPlutusScriptV3) (File fp)

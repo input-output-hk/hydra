@@ -4,9 +4,8 @@
 {-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:defer-errors #-}
 -- Avoid trace calls to be optimized away when inlining functions.
 {-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:no-simplifier-inline #-}
--- Plutus core version to compile to. In babbage era, that is Cardano protocol
--- version 7 and 8, only plutus-core version 1.0.0 is available.
-{-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:target-version=1.0.0 #-}
+-- Plutus core version to compile to.
+{-# OPTIONS_GHC -fplugin-opt PlutusTx.Plugin:target-version=1.1.0 #-}
 
 -- | Minting policy for a single head tokens.
 module Hydra.Contract.HeadTokens where
@@ -14,7 +13,7 @@ module Hydra.Contract.HeadTokens where
 import PlutusTx.Prelude
 
 import Hydra.Cardano.Api (
-  PlutusScriptV2,
+  PlutusScriptV3,
   PolicyId,
   TxIn,
   fromPlutusScript,
@@ -32,7 +31,7 @@ import Hydra.Contract.MintAction (MintAction (Burn, Mint))
 import Hydra.Contract.Util (hasST)
 import Hydra.Plutus.Extras (MintingPolicyType, wrapMintingPolicy)
 import Hydra.ScriptContext (ScriptContext (..), TxInfo (txInfoInputs, txInfoMint), ownCurrencySymbol, scriptOutputsAt)
-import PlutusCore.Core (plcVersion100)
+import PlutusCore.Core (plcVersion110)
 import PlutusLedgerApi.V2 (
   Datum (getDatum),
   FromData (fromBuiltinData),
@@ -180,15 +179,15 @@ validateTokensBurning context =
 unappliedMintingPolicy :: CompiledCode (TxOutRef -> MintingPolicyType)
 unappliedMintingPolicy =
   $$(PlutusTx.compile [||\vInitial vHead ref -> wrapMintingPolicy (validate vInitial vHead ref)||])
-    `PlutusTx.unsafeApplyCode` PlutusTx.liftCode plcVersion100 Initial.validatorHash
-    `PlutusTx.unsafeApplyCode` PlutusTx.liftCode plcVersion100 Head.validatorHash
+    `PlutusTx.unsafeApplyCode` PlutusTx.liftCode plcVersion110 Initial.validatorHash
+    `PlutusTx.unsafeApplyCode` PlutusTx.liftCode plcVersion110 Head.validatorHash
 
 -- | Get the applied head minting policy script given a seed 'TxOutRef'.
 mintingPolicyScript :: TxOutRef -> SerialisedScript
 mintingPolicyScript txOutRef =
   serialiseCompiledCode $
     unappliedMintingPolicy
-      `PlutusTx.unsafeApplyCode` PlutusTx.liftCode plcVersion100 txOutRef
+      `PlutusTx.unsafeApplyCode` PlutusTx.liftCode plcVersion110 txOutRef
 
 -- * Create PolicyId
 
@@ -200,4 +199,4 @@ headPolicyId =
 -- | Get the applied head minting policy script given a seed 'TxIn'.
 mkHeadTokenScript :: TxIn -> Api.PlutusScript
 mkHeadTokenScript =
-  fromPlutusScript @PlutusScriptV2 . mintingPolicyScript . toPlutusTxOutRef
+  fromPlutusScript @PlutusScriptV3 . mintingPolicyScript . toPlutusTxOutRef
