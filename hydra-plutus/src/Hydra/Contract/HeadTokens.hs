@@ -29,10 +29,9 @@ import Hydra.Contract.HeadTokensError (HeadTokensError (..), errorCode)
 import Hydra.Contract.Initial qualified as Initial
 import Hydra.Contract.MintAction (MintAction (Burn, Mint))
 import Hydra.Contract.Util (hasST)
-import Hydra.Plutus.Extras (MintingPolicyType, wrapMintingPolicy)
 import Hydra.ScriptContext (ScriptContext (..), TxInfo (txInfoInputs, txInfoMint), ownCurrencySymbol, scriptOutputsAt)
 import PlutusCore.Core (plcVersion110)
-import PlutusLedgerApi.V2 (
+import PlutusLedgerApi.V3 (
   Datum (getDatum),
   FromData (fromBuiltinData),
   OutputDatum (..),
@@ -41,7 +40,9 @@ import PlutusLedgerApi.V2 (
   TxInInfo (..),
   TxOutRef,
   Value (getValue),
+  getRedeemer,
   serialiseCompiledCode,
+  unsafeFromBuiltinData,
  )
 import PlutusTx (CompiledCode)
 import PlutusTx qualified
@@ -51,13 +52,14 @@ validate ::
   ScriptHash ->
   ScriptHash ->
   TxOutRef ->
-  MintAction ->
   ScriptContext ->
   Bool
-validate initialValidator headValidator seedInput action context =
+validate initialValidator headValidator seedInput context =
   case action of
     Mint -> validateTokensMinting initialValidator headValidator seedInput context
     Burn -> validateTokensBurning context
+ where
+  action = unsafeFromBuiltinData . getRedeemer $ scriptContextRedeemer context
 {-# INLINEABLE validate #-}
 
 -- | When minting head tokens we want to make sure that:
@@ -176,9 +178,9 @@ validateTokensBurning context =
       Just tokenMap -> AssocMap.all (< 0) tokenMap
 
 -- | Raw minting policy code where the 'TxOutRef' is still a parameter.
-unappliedMintingPolicy :: CompiledCode (TxOutRef -> MintingPolicyType)
+unappliedMintingPolicy :: CompiledCode (TxOutRef -> ScriptContext -> BuiltinUnit)
 unappliedMintingPolicy =
-  $$(PlutusTx.compile [||\vInitial vHead ref -> wrapMintingPolicy (validate vInitial vHead ref)||])
+  $$(PlutusTx.compile [||\vInitial vHead ref ctx -> check $ validate vInitial vHead ref ctx||])
     `PlutusTx.unsafeApplyCode` PlutusTx.liftCode plcVersion110 Initial.validatorHash
     `PlutusTx.unsafeApplyCode` PlutusTx.liftCode plcVersion110 Head.validatorHash
 

@@ -9,10 +9,9 @@ module Validators where
 
 import PlutusTx.Prelude
 
-import Hydra.Plutus.Extras (wrapValidator)
 import Plutus.MerkleTree qualified as MT
 import PlutusLedgerApi.Common (SerialisedScript, serialiseCompiledCode)
-import PlutusLedgerApi.V3 (ScriptContext)
+import PlutusLedgerApi.V3 (ScriptContext (..), getRedeemer, unsafeFromBuiltinData)
 import PlutusTx qualified as Plutus
 
 -- | A validator for measuring cost of MT membership validation.
@@ -21,8 +20,8 @@ merkleTreeMemberValidator =
   serialiseCompiledCode
     $$( Plutus.compile
           [||
-          \ScriptContext{scriptRedeemer} ->
-            let (e, root, proof) = unsafeFromBuiltinData $ getRedeemer scriptRedeemer
+          \ScriptContext{scriptContextRedeemer} ->
+            let (e, root, proof) = unsafeFromBuiltinData $ getRedeemer scriptContextRedeemer
              in MT.member e root proof
           ||]
       )
@@ -34,8 +33,8 @@ merkleTreeBuilderValidator =
   serialiseCompiledCode
     $$( Plutus.compile
           [||
-          \ScriptContext{scriptRedeemer} ->
-            let (utxos, root) = unsafeFromBuiltinData $ getRedeemer scriptRedeemer
+          \ScriptContext{scriptContextRedeemer} ->
+            let (utxos, root) = unsafeFromBuiltinData $ getRedeemer scriptContextRedeemer
              in MT.rootHash (MT.fromList utxos) == root
           ||]
       )
