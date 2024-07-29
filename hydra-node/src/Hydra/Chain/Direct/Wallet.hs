@@ -13,7 +13,6 @@ import Cardano.Ledger.Address qualified as Ledger
 import Cardano.Ledger.Alonzo.Plutus.Context (ContextError)
 import Cardano.Ledger.Alonzo.Scripts (
   AlonzoEraScript (..),
-  AlonzoPlutusPurpose (AlonzoSpending),
   AsIx (..),
   ExUnits (ExUnits),
   plutusScriptLanguage,
@@ -26,7 +25,6 @@ import Cardano.Ledger.Alonzo.TxWits (
   txscripts,
  )
 import Cardano.Ledger.Api (
-  BabbageEra,
   TransactionScriptFailure,
   bodyTxL,
   collateralInputsTxBodyL,
@@ -49,6 +47,9 @@ import Cardano.Ledger.Babbage.TxBody qualified as Babbage
 import Cardano.Ledger.Babbage.UTxO (getReferenceScripts)
 import Cardano.Ledger.BaseTypes qualified as Ledger
 import Cardano.Ledger.Coin (Coin (..))
+import Cardano.Ledger.Conway.Scripts (
+  ConwayPlutusPurpose (ConwaySpending),
+ )
 import Cardano.Ledger.Core (isNativeScript)
 import Cardano.Ledger.Core qualified as Core
 import Cardano.Ledger.Core qualified as Ledger
@@ -377,9 +378,9 @@ coverFee_ pparams systemStart epochInfo lookupUTxO walletUTxO partialTx@Babbage.
 
     adjustOne (ptr, (d, _exUnits)) =
       case ptr of
-        AlonzoSpending idx
+        ConwaySpending idx
           | fromIntegral (unAsIx idx) `elem` differences ->
-              (AlonzoSpending (AsIx (unAsIx idx + 1)), (d, executionUnitsFor ptr))
+              (ConwaySpending (AsIx (unAsIx idx + 1)), (d, executionUnitsFor ptr))
         _ ->
           (ptr, (d, executionUnitsFor ptr))
 
@@ -425,8 +426,8 @@ estimateScriptsCost pparams systemStart epochInfo utxo tx = do
  where
   result ::
     Map
-      (AlonzoPlutusPurpose AsIx LedgerEra)
-      (Either (TransactionScriptFailure (BabbageEra StandardCrypto)) ExUnits)
+      (PlutusPurpose AsIx LedgerEra)
+      (Either (TransactionScriptFailure LedgerEra) ExUnits)
   result =
     evalTxExUnits
       pparams
