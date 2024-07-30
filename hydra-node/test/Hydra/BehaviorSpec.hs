@@ -535,12 +535,11 @@ spec = parallel $ do
               withHydraNode aliceSk [] chain $ \n1 -> do
                 send n1 Init
                 waitUntil [n1] $ HeadIsInitializing testHeadId (fromList [alice])
-                simulateCommit chain (alice, utxoRef 1)
 
           logs = selectTraceEventsDynamic @_ @(HydraNodeLog SimpleTx) result
 
-      logs `shouldContain` [BeginEffect alice 1 0 (ClientEffect $ HeadIsInitializing testHeadId $ fromList [alice])]
-      logs `shouldContain` [EndEffect alice 1 0]
+      logs `shouldContain` [BeginEffect alice 2 0 (ClientEffect $ HeadIsInitializing testHeadId $ fromList [alice])]
+      logs `shouldContain` [EndEffect alice 2 0]
 
   describe "rolling back & forward does not make the node crash" $ do
     it "does work for rollbacks past init" $
@@ -600,7 +599,7 @@ waitUntilMatch nodes predicate = do
       failure $
         toString $
           unlines
-            [ "waitUntilMatch did not match a message within " <> show oneMonth
+            [ "waitUntilMatch did not match a message within " <> show oneMonth <> ", seen messages:"
             , unlines (show <$> msgs)
             ]
  where
@@ -710,7 +709,10 @@ simulatedChainAndNetwork initialChainState = do
                 Chain
                   { postTx = \tx -> do
                       now <- getCurrentTime
-                      createAndYieldEvent nodes history localChainState $ toOnChainTx now tx
+                      -- Only observe "after one block"
+                      void . async $ do
+                        threadDelay blockTime
+                        createAndYieldEvent nodes history localChainState $ toOnChainTx now tx
                   , draftCommitTx = \_ -> error "unexpected call to draftCommitTx"
                   , submitTx = \_ -> error "unexpected call to submitTx"
                   }
