@@ -437,6 +437,29 @@ spec = parallel $ do
                 waitUntil [n1, n2] $ DecommitApproved{headId = testHeadId, decommitTxId = txId decommitTx2, utxoToDecommit = utxoRefs [22]}
                 waitUntil [n1, n2] $ DecommitFinalized{headId = testHeadId, decommitTxId = txId decommitTx2}
 
+      it "can process transactions while decommit pending" $
+        shouldRunInSim $ do
+          -- NOTE: The simulated network has a block time of 20 (simulated) seconds.
+          withSimulatedChainAndNetwork $ \chain ->
+            withHydraNode aliceSk [bob] chain $ \n1 ->
+              withHydraNode bobSk [alice] chain $ \n2 -> do
+                openHead chain n1 n2
+
+                let decommitTx = SimpleTx 1 (utxoRef 1) (utxoRef 42)
+                send n2 (Decommit{decommitTx})
+                waitUntil [n1, n2] $
+                  DecommitRequested{headId = testHeadId, decommitTx, utxoToDecommit = utxoRefs [42]}
+                waitUntil [n1, n2] $
+                  DecommitApproved{headId = testHeadId, decommitTxId = 1, utxoToDecommit = utxoRefs [42]}
+
+                let normalTx = SimpleTx 2 (utxoRef 2) (utxoRef 3)
+                send n2 (NewTx normalTx)
+                waitUntilMatch [n1, n2] $ \case
+                  SnapshotConfirmed{snapshot = Snapshot{confirmed}} -> 2 `elem` confirmed
+                  _ -> False
+
+                waitUntil [n1, n2] $ DecommitFinalized{headId = testHeadId, decommitTxId = 1}
+
     it "can close with decommit in flight" $
       shouldRunInSim $ do
         withSimulatedChainAndNetwork $ \chain ->
