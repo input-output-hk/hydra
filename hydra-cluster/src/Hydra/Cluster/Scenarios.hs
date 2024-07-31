@@ -85,7 +85,7 @@ import HydraNode (
   withHydraCluster,
   withHydraNode,
  )
-import Network.HTTP.Conduit (httpLbs, parseUrlThrow)
+import Network.HTTP.Conduit (parseUrlThrow)
 import Network.HTTP.Conduit qualified as L
 import Network.HTTP.Req (
   HttpException (VanillaHttpException),
@@ -100,7 +100,7 @@ import Network.HTTP.Req (
   runReq,
   (/:),
  )
-import Network.HTTP.Simple (httpLBS, setRequestBodyJSON)
+import Network.HTTP.Simple (getResponseBody, httpJSON, setRequestBodyJSON)
 import System.Directory (removeDirectoryRecursive)
 import System.FilePath ((</>))
 import Test.QuickCheck (choose, elements, generate)
@@ -620,14 +620,19 @@ canCommit tracer workDir node hydraScriptsTxId =
 
       -- TODO: Acceptance test the general case using a blueprint transaction?
       -- <&> setRequestBodyJSON (object ["utxo" .= commitUTxO, "blueprintTx" .= commitTx])
-      void $
+      resp <-
         parseUrlThrow ("POST " <> hydraNodeBaseUrl n1 <> "/commit")
           -- Specific case: commit all of provided UTxO, assuming they are just pub key inputs
           <&> setRequestBodyJSON (object ["utxo" .= commitUTxO])
-            >>= httpLBS
-      -- TODO:
-      --  - Assert that the commit happened
-      undefined
+            >>= httpJSON
+
+      let incrementTx = getResponseBody resp :: Tx
+          tx = signTx walletSk incrementTx
+
+      submitTx node tx
+
+      waitFor hydraTracer 10 [n1] $
+        output "CommitFinalized" ["headId" .= headId]
  where
   RunningNode{networkId, nodeSocket, blockTime} = node
 
