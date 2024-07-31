@@ -14,11 +14,12 @@ import Hydra.API.ClientInput (ClientInput)
 import Hydra.API.HTTPServer (httpApp)
 import Hydra.API.Projection (Projection (..), mkProjection)
 import Hydra.API.ServerOutput (
+  CommitInfo (CannotCommit),
   HeadStatus (Idle),
   ServerOutput,
   TimedServerOutput (..),
+  projectCommitInfo,
   projectHeadStatus,
-  projectInitializingHeadId,
   projectSnapshotUtxo,
  )
 import Hydra.API.WSServer (nextSequenceNumber, wsApp)
@@ -77,7 +78,7 @@ withAPIServer host port party PersistenceIncremental{loadAll, append} tracer cha
     -- Intialize our read model from stored events
     headStatusP <- mkProjection Idle (output <$> timedOutputEvents) projectHeadStatus
     snapshotUtxoP <- mkProjection Nothing (output <$> timedOutputEvents) projectSnapshotUtxo
-    headIdP <- mkProjection Nothing (output <$> timedOutputEvents) projectInitializingHeadId
+    headIdP <- mkProjection CannotCommit (output <$> timedOutputEvents) projectCommitInfo
 
     -- NOTE: we need to reverse the list because we store history in a reversed
     -- list in memory but in order on disk

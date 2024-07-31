@@ -12,11 +12,12 @@ import Data.ByteString.Short ()
 import Data.Text (pack)
 import Hydra.API.APIServerLog (APIServerLog (..), Method (..), PathInfo (..))
 import Hydra.API.ClientInput (ClientInput (..))
+import Hydra.API.ServerOutput (CommitInfo (..))
 import Hydra.Cardano.Api (
   LedgerEra,
   Tx,
  )
-import Hydra.Chain (Chain (..), CommitBlueprintTx (..), IsChainState, PostTxError (..), draftCommitTx)
+import Hydra.Chain (Chain (..), ChainEvent (PostTxError), CommitBlueprintTx (..), IsChainState, PostTxError (..), draftCommitTx)
 import Hydra.Chain.Direct.State ()
 import Hydra.HeadId (HeadId)
 import Hydra.Ledger (IsTx (..))
@@ -123,14 +124,14 @@ httpApp ::
   Tracer IO APIServerLog ->
   Chain tx IO ->
   PParams LedgerEra ->
-  -- | A means to get the 'HeadId' if initializing the Head.
-  IO (Maybe HeadId) ->
+  -- | A means to get commit info.
+  IO CommitInfo ->
   -- | Get latest confirmed UTxO snapshot.
   IO (Maybe (UTxOType tx)) ->
   -- | Callback to yield a 'ClientInput' to the main event loop.
   (ClientInput tx -> IO ()) ->
   Application
-httpApp tracer directChain pparams getInitializingHeadId getConfirmedUTxO putClientInput request respond = do
+httpApp tracer directChain pparams getCommitInfo getConfirmedUTxO putClientInput request respond = do
   traceWith tracer $
     APIHTTPRequestReceived
       { method = Method $ requestMethod request
@@ -146,7 +147,7 @@ httpApp tracer directChain pparams getInitializingHeadId getConfirmedUTxO putCli
         Just utxo -> respond $ okJSON utxo
     ("POST", ["commit"]) ->
       consumeRequestBodyStrict request
-        >>= handleDraftCommitUtxo directChain getInitializingHeadId
+        >>= handleDraftCommitUtxo directChain getCommitInfo
         >>= respond
     ("POST", ["decommit"]) ->
       consumeRequestBodyStrict request
@@ -168,14 +169,14 @@ handleDraftCommitUtxo ::
   forall tx.
   IsChainState tx =>
   Chain tx IO ->
-  -- | A means to get the 'HeadId' if initializing the Head.
-  IO (Maybe HeadId) ->
+  -- | A means to get commit info.
+  IO CommitInfo ->
   -- | Request body.
   LBS.ByteString ->
   IO Response
-handleDraftCommitUtxo directChain getInitializingHeadId body = do
-  getInitializingHeadId >>= \case
-    Just headId -> do
+handleDraftCommitUtxo directChain getCommitInfo body = do
+  getCommitInfo >>= \case
+    NormalCommit headId -> do
       case Aeson.eitherDecode' body :: Either String (DraftCommitTxRequest tx) of
         Left err ->
           pure $ responseLBS status400 [] (Aeson.encode $ Aeson.String $ pack err)
@@ -185,7 +186,8 @@ handleDraftCommitUtxo directChain getInitializingHeadId body = do
           let blueprintTx = txSpendingUTxO utxoToCommit
           draftCommit headId utxoToCommit blueprintTx
     -- XXX: This is not really an internal server error
-    Nothing -> pure $ responseLBS status500 [] (Aeson.encode (FailedToDraftTxNotInitializing :: PostTxError tx))
+    -- FIXME: FailedToDraftTxNotInitializing is not a good name and it's not a PostTxError. Should create an error type somewhere in Hydra.API for this.
+    CannotCommit -> pure $ responseLBS status500 [] (Aeson.encode (FailedToDraftTxNotInitializing :: PostTxError tx))
  where
   draftCommit headId lookupUTxO blueprintTx =
     draftCommitTx headId CommitBlueprintTx{lookupUTxO, blueprintTx} <&> \case

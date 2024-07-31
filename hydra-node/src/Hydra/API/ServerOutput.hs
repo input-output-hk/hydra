@@ -258,15 +258,22 @@ data HeadStatus
 instance Arbitrary HeadStatus where
   arbitrary = genericArbitrary
 
--- | Projection to obtain the 'HeadId' needed to draft a commit transaction.
+-- | All information needed to distinguish behavior of the commit endpoint.
+data CommitInfo
+  = CannotCommit
+  | NormalCommit HeadId
+  | IncrementalCommit
+
+-- | Projection to obtain 'CommitInfo' needed to draft commit transactions.
 -- NOTE: We only want to project 'HeadId' when the Head is in the 'Initializing'
 -- state since this is when Head parties need to commit some funds.
-projectInitializingHeadId :: Maybe HeadId -> ServerOutput tx -> Maybe HeadId
-projectInitializingHeadId mHeadId = \case
-  HeadIsInitializing{headId} -> Just headId
-  HeadIsOpen{} -> Nothing
-  HeadIsAborted{} -> Nothing
-  _other -> mHeadId
+projectCommitInfo :: CommitInfo -> ServerOutput tx -> CommitInfo
+projectCommitInfo commitInfo = \case
+  HeadIsInitializing{headId} -> NormalCommit headId
+  HeadIsOpen{} -> IncrementalCommit
+  HeadIsAborted{} -> CannotCommit
+  HeadIsClosed{} -> CannotCommit
+  _other -> commitInfo
 
 -- | Projection function related to 'headStatus' field in 'Greetings' message.
 projectHeadStatus :: HeadStatus -> ServerOutput tx -> HeadStatus
