@@ -315,7 +315,6 @@ singlePartyOpenAHead tracer workDir node hydraScriptsTxId callback =
       -- Initialize & open head
       send n1 $ input "Init" []
       headId <- waitMatch (10 * blockTime) n1 $ headIsInitializingWith (Set.fromList [alice])
-      -- Commit nothing for now
       requestCommitTx n1 utxoToCommit <&> signTx walletSk >>= submitTx node
       waitFor hydraTracer (10 * blockTime) [n1] $
         output "HeadIsOpen" ["utxo" .= toJSON utxoToCommit, "headId" .= headId]
@@ -594,6 +593,36 @@ initWithWrongKeys workDir tracer node@RunningNode{nodeSocket} hydraScriptsTxId =
         v ^? key "participants" . _JSON
 
       participants `shouldMatchList` expectedParticipants
+
+-- | Open a a single participant head and incrementally commit to it.
+canCommit :: Tracer IO EndToEndLog -> FilePath -> RunningNode -> TxId -> IO ()
+canCommit tracer workDir node hydraScriptsTxId =
+  (`finally` returnFundsToFaucet tracer node Alice) $ do
+    refuelIfNeeded tracer node Alice 30_000_000
+    let contestationPeriod = UnsafeContestationPeriod 1
+    aliceChainConfig <-
+      chainConfigFor Alice workDir nodeSocket hydraScriptsTxId [] contestationPeriod
+        <&> setNetworkId networkId
+    withHydraNode hydraTracer aliceChainConfig workDir 1 aliceSk [] [1] $ \n1 -> do
+      send n1 $ input "Init" []
+      headId <- waitMatch 10 n1 $ headIsInitializingWith (Set.fromList [alice])
+
+      -- Commit nothing
+      requestCommitTx n1 mempty >>= submitTx node
+      waitFor hydraTracer (10 * blockTime) [n1] $
+        output "HeadIsOpen" ["utxo" .= object mempty, "headId" .= headId]
+
+      -- Get some L1 funds
+      (walletVk, walletSk) <- generate genKeyPair
+      commitUTxO <- seedFromFaucet node walletVk 5_000_000 (contramap FromFaucet tracer)
+      --
+      -- TODO:
+      --  - Check we can incrementally commit!
+      --
+      undefined
+ where
+  RunningNode{networkId, nodeSocket, blockTime} = node
+  hydraTracer = contramap FromHydraNode tracer
 
 -- | Open a a single participant head with some UTxO and incrementally decommit it.
 canDecommit :: Tracer IO EndToEndLog -> FilePath -> RunningNode -> TxId -> IO ()
