@@ -85,6 +85,7 @@ import HydraNode (
   withHydraCluster,
   withHydraNode,
  )
+import Network.HTTP.Conduit (httpLbs, parseUrlThrow)
 import Network.HTTP.Conduit qualified as L
 import Network.HTTP.Req (
   HttpException (VanillaHttpException),
@@ -99,6 +100,7 @@ import Network.HTTP.Req (
   runReq,
   (/:),
  )
+import Network.HTTP.Simple (httpLBS, setRequestBodyJSON)
 import System.Directory (removeDirectoryRecursive)
 import System.FilePath ((</>))
 import Test.QuickCheck (choose, elements, generate)
@@ -615,14 +617,23 @@ canCommit tracer workDir node hydraScriptsTxId =
       -- Get some L1 funds
       (walletVk, walletSk) <- generate genKeyPair
       commitUTxO <- seedFromFaucet node walletVk 5_000_000 (contramap FromFaucet tracer)
-      --
+
+      -- TODO: Acceptance test the general case using a blueprint transaction?
+      -- <&> setRequestBodyJSON (object ["utxo" .= commitUTxO, "blueprintTx" .= commitTx])
+      void $
+        parseUrlThrow ("POST " <> hydraNodeBaseUrl n1 <> "/commit")
+          -- Specific case: commit all of provided UTxO, assuming they are just pub key inputs
+          <&> setRequestBodyJSON (object ["utxo" .= commitUTxO])
+            >>= httpLBS
       -- TODO:
-      --  - Check we can incrementally commit!
-      --
+      --  - Assert that the commit happened
       undefined
  where
   RunningNode{networkId, nodeSocket, blockTime} = node
+
   hydraTracer = contramap FromHydraNode tracer
+
+  hydraNodeBaseUrl HydraClient{hydraNodeId} = "http://127.0.0.1:" <> show (4000 + hydraNodeId)
 
 -- | Open a a single participant head with some UTxO and incrementally decommit it.
 canDecommit :: Tracer IO EndToEndLog -> FilePath -> RunningNode -> TxId -> IO ()
