@@ -472,18 +472,22 @@ onOpenNetworkReqSn env ledger st otherParty sv sn requestedTxIds mDecommitTx =
       unseen -> wait $ WaitOnTxs unseen
 
   requireApplicableDecommitTx cont =
-    case mDecommitTx of
-      Nothing -> cont (confirmedUTxO, Nothing)
-      Just decommitTx ->
-        -- Spec: require ̅S.𝑈 ◦ txω /= ⊥
-        case applyTransactions ledger currentSlot confirmedUTxO [decommitTx] of
-          Left (_, err) ->
-            Error $ RequireFailed $ SnapshotDoesNotApply sn (txId decommitTx) err
-          Right newConfirmedUTxO -> do
-            -- Spec: 𝑈_active ← ̅S.𝑈 ◦ txω \ outputs(txω)
-            let utxoToDecommit = utxoFromTx decommitTx
-            let activeUTxO = newConfirmedUTxO `withoutUTxO` utxoToDecommit
-            cont (activeUTxO, Just utxoToDecommit)
+    -- NOTE: if decommit tx was already applied when we constructed the previous
+    -- snapshot we should not try to apply it again
+    if confUTxOToDecommit == decommitUTxO
+      then cont (confirmedUTxO, decommitUTxO)
+      else case mDecommitTx of
+        Nothing -> cont (confirmedUTxO, Nothing)
+        Just decommitTx ->
+          -- Spec: require ̅S.𝑈 ◦ txω /= ⊥
+          case applyTransactions ledger currentSlot confirmedUTxO [decommitTx] of
+            Left (_, err) ->
+              Error $ RequireFailed $ SnapshotDoesNotApply sn (txId decommitTx) err
+            Right newConfirmedUTxO -> do
+              -- Spec: 𝑈_active ← ̅S.𝑈 ◦ txω \ outputs(txω)
+              let utxoToDecommit = utxoFromTx decommitTx
+              let activeUTxO = newConfirmedUTxO `withoutUTxO` utxoToDecommit
+              cont (activeUTxO, Just utxoToDecommit)
 
   -- NOTE: at this point we know those transactions apply on the localUTxO because they
   -- are part of the localTxs. The snapshot can contain less transactions than the ones
@@ -511,6 +515,12 @@ onOpenNetworkReqSn env ledger st otherParty sv sn requestedTxIds mDecommitTx =
   confSn = case confirmedSnapshot of
     InitialSnapshot{} -> 0
     ConfirmedSnapshot{snapshot = Snapshot{number}} -> number
+
+  decommitUTxO = utxoFromTx <$> mDecommitTx
+
+  confUTxOToDecommit = case confirmedSnapshot of
+    InitialSnapshot{} -> Nothing
+    ConfirmedSnapshot{snapshot = Snapshot{utxoToDecommit}} -> utxoToDecommit
 
   seenSn = seenSnapshotNumber seenSnapshot
 
