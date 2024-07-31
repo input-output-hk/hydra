@@ -7,6 +7,7 @@ import Data.Aeson (Result (Error, Success), eitherDecode, encode, fromJSON)
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Lens (key, nth)
 import Hydra.API.HTTPServer (DraftCommitTxRequest (..), DraftCommitTxResponse (..), SubmitTxRequest (..), TransactionSubmitted, httpApp)
+import Hydra.API.ServerOutput (CommitInfo (CannotCommit, NormalCommit))
 import Hydra.API.ServerSpec (dummyChainHandle)
 import Hydra.Cardano.Api (
   serialiseToTextEnvelope,
@@ -100,10 +101,11 @@ apiServerSpec :: Spec
 apiServerSpec = do
   describe "API should respond correctly" $ do
     let getNothing = pure Nothing
-    let putClientInput = const (pure ())
+        cantCommit = pure CannotCommit
+        putClientInput = const (pure ())
 
     describe "GET /protocol-parameters" $ do
-      with (return $ httpApp @SimpleTx nullTracer dummyChainHandle defaultPParams getNothing getNothing putClientInput) $ do
+      with (return $ httpApp @SimpleTx nullTracer dummyChainHandle defaultPParams cantCommit getNothing putClientInput) $ do
         it "matches schema" $
           withJsonSpecifications $ \schemaDir -> do
             get "/protocol-parameters"
@@ -122,7 +124,7 @@ apiServerSpec = do
     describe "GET /snapshot/utxo" $ do
       prop "responds correctly" $ \utxo -> do
         let getUTxO = pure utxo
-        withApplication (httpApp @SimpleTx nullTracer dummyChainHandle defaultPParams getNothing getUTxO putClientInput) $ do
+        withApplication (httpApp @SimpleTx nullTracer dummyChainHandle defaultPParams cantCommit getUTxO putClientInput) $ do
           get "/snapshot/utxo"
             `shouldRespondWith` case utxo of
               Nothing -> 404
@@ -135,7 +137,7 @@ apiServerSpec = do
           . withJsonSpecifications
           $ \schemaDir -> do
             let getUTxO = pure $ Just utxo
-            withApplication (httpApp @Tx nullTracer dummyChainHandle defaultPParams getNothing getUTxO putClientInput) $ do
+            withApplication (httpApp @Tx nullTracer dummyChainHandle defaultPParams cantCommit getUTxO putClientInput) $ do
               get "/snapshot/utxo"
                 `shouldRespondWith` 200
                   { matchBody =
@@ -145,7 +147,7 @@ apiServerSpec = do
                   }
 
     describe "POST /commit" $ do
-      let getHeadId = pure $ Just (generateWith arbitrary 42)
+      let getHeadId = pure $ NormalCommit (generateWith arbitrary 42)
       let workingChainHandle =
             dummyChainHandle
               { draftCommitTx = \_ _ -> do
