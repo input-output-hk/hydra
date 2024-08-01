@@ -55,7 +55,9 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    Alice->>Node A: Decommit (decTx)
+    Alice->>+Node A: POST /decommit (decTx)
+    Node A-->>-Alice: OK
+
     Node A->>Node A: canApply decTx
 
     par broadcast

@@ -17,9 +17,8 @@ import Hydra.Cardano.Api (
   LedgerEra,
   Tx,
  )
-import Hydra.Chain (Chain (..), ChainEvent (PostTxError), CommitBlueprintTx (..), IsChainState, PostTxError (..), draftCommitTx)
+import Hydra.Chain (Chain (..), CommitBlueprintTx (..), IsChainState, PostTxError (..), draftCommitTx)
 import Hydra.Chain.Direct.State ()
-import Hydra.HeadId (HeadId)
 import Hydra.Ledger (IsTx (..))
 import Hydra.Logging (Tracer, traceWith)
 import Network.HTTP.Types (status200, status400, status404, status500)
@@ -147,7 +146,7 @@ httpApp tracer directChain pparams getCommitInfo getConfirmedUTxO putClientInput
         Just utxo -> respond $ okJSON utxo
     ("POST", ["commit"]) ->
       consumeRequestBodyStrict request
-        >>= handleDraftCommitUtxo directChain getCommitInfo
+        >>= handleDraftCommitUtxo directChain getCommitInfo putClientInput
         >>= respond
     ("POST", ["decommit"]) ->
       consumeRequestBodyStrict request
@@ -165,6 +164,7 @@ httpApp tracer directChain pparams getCommitInfo getConfirmedUTxO putClientInput
 -- * Handlers
 
 -- FIXME: Api specification for /commit is broken in the spec/docs.
+
 -- | Handle request to obtain a draft commit tx.
 handleDraftCommitUtxo ::
   forall tx.
@@ -172,10 +172,12 @@ handleDraftCommitUtxo ::
   Chain tx IO ->
   -- | A means to get commit info.
   IO CommitInfo ->
+  -- | Submit a 'ClientInput' to the main protocol logic.
+  (ClientInput tx -> IO ()) ->
   -- | Request body.
   LBS.ByteString ->
   IO Response
-handleDraftCommitUtxo directChain getCommitInfo body = do
+handleDraftCommitUtxo directChain getCommitInfo putClientInput body = do
   getCommitInfo >>= \case
     NormalCommit headId -> do
       case Aeson.eitherDecode' body :: Either String (DraftCommitTxRequest tx) of
@@ -192,22 +194,23 @@ handleDraftCommitUtxo directChain getCommitInfo body = do
         Left err ->
           pure $ responseLBS status400 [] (Aeson.encode $ Aeson.String $ pack err)
         Right FullCommitRequest{blueprintTx, utxo} -> do
-          undefined
+          incrementalCommit blueprintTx
         Right SimpleCommitRequest{utxoToCommit} -> do
-          let blueprintTx = txSpendingUTxO utxoToCommit
-          -- TODO:
-          --  - Send this off
-          --  - Wait synchronysly
-          --  - Get a snapshot confirmed
-          --  - Construct incrementTx
-          --  - Return it
-          undefined
+          incrementalCommit $ txSpendingUTxO utxoToCommit
 
     -- XXX: This is not really an internal server error
     -- FIXME: FailedToDraftTxNotInitializing is not a good name and it's not a PostTxError. Should create an error type somewhere in Hydra.API for this.
-
     CannotCommit -> pure $ responseLBS status500 [] (Aeson.encode (FailedToDraftTxNotInitializing :: PostTxError tx))
  where
+  incrementalCommit commitTx = do
+    putClientInput Commit{commitTx}
+    -- TODO:
+    --  - Wait synchronysly
+    --  - Get a snapshot confirmed
+    --  - Construct incrementTx
+    --  - Return it
+    error "Not done yet"
+
   draftCommit headId lookupUTxO blueprintTx =
     draftCommitTx headId CommitBlueprintTx{lookupUTxO, blueprintTx} <&> \case
       Left e ->
