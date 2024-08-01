@@ -164,6 +164,7 @@ httpApp tracer directChain pparams getCommitInfo getConfirmedUTxO putClientInput
 
 -- * Handlers
 
+-- FIXME: Api specification for /commit is broken in the spec/docs.
 -- | Handle request to obtain a draft commit tx.
 handleDraftCommitUtxo ::
   forall tx.
@@ -185,8 +186,26 @@ handleDraftCommitUtxo directChain getCommitInfo body = do
         Right SimpleCommitRequest{utxoToCommit} -> do
           let blueprintTx = txSpendingUTxO utxoToCommit
           draftCommit headId utxoToCommit blueprintTx
+    IncrementalCommit -> do
+      -- TODO: Refactor with above
+      case Aeson.eitherDecode' body :: Either String (DraftCommitTxRequest tx) of
+        Left err ->
+          pure $ responseLBS status400 [] (Aeson.encode $ Aeson.String $ pack err)
+        Right FullCommitRequest{blueprintTx, utxo} -> do
+          undefined
+        Right SimpleCommitRequest{utxoToCommit} -> do
+          let blueprintTx = txSpendingUTxO utxoToCommit
+          -- TODO:
+          --  - Send this off
+          --  - Wait synchronysly
+          --  - Get a snapshot confirmed
+          --  - Construct incrementTx
+          --  - Return it
+          undefined
+
     -- XXX: This is not really an internal server error
     -- FIXME: FailedToDraftTxNotInitializing is not a good name and it's not a PostTxError. Should create an error type somewhere in Hydra.API for this.
+
     CannotCommit -> pure $ responseLBS status500 [] (Aeson.encode (FailedToDraftTxNotInitializing :: PostTxError tx))
  where
   draftCommit headId lookupUTxO blueprintTx =

@@ -623,7 +623,7 @@ canCommit tracer workDir node hydraScriptsTxId =
       resp <-
         parseUrlThrow ("POST " <> hydraNodeBaseUrl n1 <> "/commit")
           -- Specific case: commit all of provided UTxO, assuming they are just pub key inputs
-          <&> setRequestBodyJSON (object ["utxo" .= commitUTxO])
+          <&> setRequestBodyJSON commitUTxO
             >>= httpJSON
 
       let incrementTx = getResponseBody resp :: Tx
