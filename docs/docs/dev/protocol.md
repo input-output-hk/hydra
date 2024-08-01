@@ -2,14 +2,59 @@
 
 Additional implementation-specific documentation for the Hydra Head protocol and extensions like incremental decommits.
 
-### Incremental Commits
+#### Deposit L1 first
+
+```mermaid
+sequenceDiagram
+    Alice->>+Node A: POST /commit (commitTx)
+    Node A-->>-Alice: depositTx
+
+    Alice ->> Alice: sign depositTx
+    Alice ->> Chain: submit depositTx
+
+    Chain ->>+ Node A: OnDepositTx utxo
+    Node A -->> Alice: DepositDetected
+    par
+        Node A->>Node A: ReqInc utxo
+    and
+        Node A->>Node B: ReqInc utxo
+    end
+
+    Node A -->> Alice: CommitRequested
+
+    par Alice isLeader
+        Node A->>Node A: ReqSn utxo
+    and
+        Node A->>Node B: ReqSn utxo
+    end
+
+    Node A->>Node A: sig = sign snapshot incl. inputs(commitTx)
+
+    par broadcast
+        Node A->>Node A: AckSn sig
+    and
+        Node A->>Node B: AckSn sig
+    end
+    Node B->>Node A: AckSn sig
+    Node A -->> Alice: SnapshotConfirmed
+
+    Note over Node A: As decrement
+    Node A -->> Alice: CommitApproved
+
+    Node A ->> Chain: IncrementTx snapshot sig
+    Chain ->> Node A: OnIncrementTx
+    Node A -->> Alice: CommitFinalized
+```
+
+#### Interactive L2 first
+
 ```mermaid
 sequenceDiagram
     Note over Alice: Alice shows a tx spending on L1 of what she wants to commit to L2
     Alice->>+Node A: POST /commit (commitTx)
-
+    
     Note over Node A: TODO input validation?
-
+    
     Note over Node A: get approval through a signed snapshot
     par
         Node A->>Node A: ReqInc commitTx
@@ -24,7 +69,7 @@ sequenceDiagram
     and
         Node A->>Node B: ReqSn commitTx
     end
-
+    
     Node A->>Node A: sig = sign snapshot incl. inputs(commitTx)
 
     par broadcast
@@ -33,23 +78,22 @@ sequenceDiagram
         Node A->>Node B: AckSn sig
     end
     Node B->>Node A: AckSn sig
-
+    
     Node A ->>Node A: construct incrementTx using multi-signed snapshot and commitTx (blueprint)
-
+    
     Node A-->>-Alice: incrementTx
-
+    
     Alice ->> Alice: sign incrementTx
     Alice ->> Chain: submit incrementTx
-
-
+    
+    
     Chain ->> Node B: OnIncrementTx utxo
     Chain ->>+ Node A: OnIncrementTx utxo
     Node A ->> Node A: localUtxo = localUtxo + utxo
     Node A ->>- Alice: CommitFinalized
-
+    
     Note over Alice: Alice can spend on L2 what she committed from L1
 ```
-
 
 ### Incremental Decommits
 
