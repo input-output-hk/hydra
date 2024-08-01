@@ -491,7 +491,7 @@ onOpenNetworkReqSn env ledger st otherParty sv sn requestedTxIds mDecommitTx =
                     cont (activeUTxO, Just utxoToDecommit)
               Just pendingUtxOToDecommit
                 | pendingUtxOToDecommit /= utxoFromTx decommitTx ->
-                    Error $ RequireFailed ReqSvNumberInvalid{requestedSv = sv, lastSeenSv = version} -- FIXME add a new case
+                    Error $ RequireFailed ReqSnDecommitNotSettled
                 | otherwise ->
                     cont (confirmedUTxO, Just $ utxoFromTx decommitTx)
         | otherwise ->
