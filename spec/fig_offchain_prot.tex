@@ -84,8 +84,14 @@
 						\On{$(\hpRS,v,s,\mT_{\mathsf{req}}, \tx_{\omega})$ from $\party_j$}{
 							\Req{$v = \hatv ~ \land ~ s = \hats + 1 ~ \land ~ \hpLdr(s) = j$} \;
 							\Wait{$\hats = \bar{\mc S}.s$}{
-								\Req{$\bar{\mc S}.U \applytx \tx_{\omega} \not= \bot$} \;
-								$U_{\mathsf{active}} \gets \bar{\mc S}.U \applytx \tx_{\omega} \setminus \mathsf{outputs(\tx_{\omega})}$ \;
+								\If{$v = \bar{\mc S}.v$ }{
+									\Req{$\bar{\mc S}.\tx_{\omega} = \tx_{\omega}$} \;
+									$U_{\mathsf{active}} \gets \bar{\mc S}.U$ \;
+								}
+								\Else{
+									\Req{$\bar{\mc S}.U \applytx \tx_{\omega} \not= \bot$} \;
+									$U_{\mathsf{active}} \gets \bar{\mc S}.U \applytx \tx_{\omega} \setminus \mathsf{outputs(\tx_{\omega})}$ \;
+								}
 								\Req{$U_{\mathsf{active}} \applytx \mT_{\mathsf{req}} \not= \bot$} \;
 								$U \gets U_{\mathsf{active}} \applytx \mT_{\mathsf{req}}$ \;
 								$\hats \gets s$ \;
