@@ -82,15 +82,17 @@
 
 						%%% REQ SN
 						\On{$(\hpRS,v,s,\mT_{\mathsf{req}}, \tx_{\omega})$ from $\party_j$}{
-							\Req{$v = \hatv ~ \land ~ s = \hats + 1 ~ \land ~ \hpLdr(s) = j$} \;
-							\Wait{$\hats = \bar{\mc S}.s$}{
-								\If{$v = \bar{\mc S}.v$ }{
-									\Req{$\bar{\mc S}.\tx_{\omega} = \tx_{\omega}$} \;
+							\Req{$s = \hats + 1 ~ \land ~ \hpLdr(s) = j$} \;
+							\Wait{$ v = \hatv ~ \land ~ \hats = \bar{\mc S}.s$}{
+							    % TODO: waiting for version observed is way longer than for no snapshot in flight!
+								\If{$v = \bar{\mc S}.v ~ \land ~ \bar{\mc S}.U_{\omega} \neq \emptyset$ }{
 									$U_{\mathsf{active}} \gets \bar{\mc S}.U$ \;
+									$U_{\omega} \gets \bar{\mc S}.U_{\omega}$
 								}
 								\Else{
 									\Req{$\bar{\mc S}.U \applytx \tx_{\omega} \not= \bot$} \;
 									$U_{\mathsf{active}} \gets \bar{\mc S}.U \applytx \tx_{\omega} \setminus \mathsf{outputs(\tx_{\omega})}$ \;
+									$U_{\omega} \gets \mathsf{outputs}(\tx_{\omega})$
 								}
 								\Req{$U_{\mathsf{active}} \applytx \mT_{\mathsf{req}} \not= \bot$} \;
 								$U \gets U_{\mathsf{active}} \applytx \mT_{\mathsf{req}}$ \;
@@ -98,7 +100,7 @@
 								% TODO: DRY message creation
 								$\eta \gets \combine(U)$ \;
 								% TODO: handwavy combine/outputs here
-								$\eta_{\omega} \gets \combine(\mathsf{outputs}(\tx_{\omega}))$ \;
+								$\eta_{\omega} \gets \combine(U_{\omega})$ \;
 								% NOTE: WE could make included transactions auditable by adding
 								% a merkle tree root to the (signed) snapshot data \eta
 								$\msSig_i \gets \msSign(\hydraSigningKey, (\cid || v || \hats || \eta || \eta_{\omega}))$ \;
