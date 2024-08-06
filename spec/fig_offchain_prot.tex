@@ -85,7 +85,8 @@
 							\Req{$s = \hats + 1 ~ \land ~ \hpLdr(s) = j$} \;
 							\Wait{$ v = \hatv ~ \land ~ \hats = \bar{\mc S}.s$}{
 							    % TODO: waiting for version observed is way longer than for no snapshot in flight!
-								\If{$v = \bar{\mc S}.v ~ \land ~ \bar{\mc S}.U_{\omega} \neq \emptyset$ }{
+								\If{$v = \bar{\mc S}.v ~ \land ~ \bar{\mc S}.\tx_{\omega} \neq \bot$ }{
+									\Req{$\bar{\mc S}.\tx_{\omega} = \tx_{\omega}$} \;
 									$U_{\mathsf{active}} \gets \bar{\mc S}.U$ \;
 									$U_{\omega} \gets \bar{\mc S}.U_{\omega}$
 								}
