@@ -836,7 +836,7 @@ toOnChainTx now = \case
   DecrementTx{headId, decrementingSnapshot} ->
     OnDecrementTx
       { headId
-      , newVersion = version
+      , newVersion = version + 1
       , distributedOutputs = maybe mempty outputsOfUTxO utxoToDecommit
       }
    where
