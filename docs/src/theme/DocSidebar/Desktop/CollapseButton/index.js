@@ -1,7 +1,8 @@
 import React from "react";
 import clsx from "clsx";
 import { translate } from "@docusaurus/Translate";
-import ToggleMenu from "../../../../components/icons/ToggleMenu";
+import IconArrow from "@theme/Icon/Arrow";
+import styles from "./styles.module.css";
 export default function CollapseButton({ onClick }) {
   return (
     <button
@@ -16,10 +17,13 @@ export default function CollapseButton({ onClick }) {
         message: "Collapse sidebar",
         description: "The title attribute for collapse button of doc sidebar",
       })}
-      className={clsx("inline-flex p-4 mx-6 justify-between")}
+      className={clsx(
+        "button button--secondary button--outline",
+        styles.collapseSidebarButton
+      )}
       onClick={onClick}
     >
-      Collapse side panel <ToggleMenu />
+      <IconArrow className={styles.collapseSidebarButtonIcon} />
     </button>
   );
 }

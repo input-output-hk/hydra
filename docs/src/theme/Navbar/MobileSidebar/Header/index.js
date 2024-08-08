@@ -14,16 +14,15 @@ function CloseButton() {
         message: "Close navigation bar",
         description: "The ARIA label for close button of mobile sidebar",
       })}
-      className="text-black navbar-sidebar__close"
-      onClick={() => mobileSidebar.toggle()}
-    >
+      className="clean-btn navbar-sidebar__close"
+      onClick={() => mobileSidebar.toggle()}>
       <IconClose color="var(--ifm-color-emphasis-600)" />
     </button>
   );
 }
 export default function NavbarMobileSidebarHeader() {
   return (
-    <div className="navbar-sidebar__brand pageContainer tablet:pt-[40px] tablet:py-[40px] shadow-none">
+    <div className="navbar-sidebar__brand">
       <NavbarLogo />
       <NavbarColorModeToggle className="margin-right--md" />
       <CloseButton />

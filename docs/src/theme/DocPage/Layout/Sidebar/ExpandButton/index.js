@@ -1,8 +1,6 @@
 import React from "react";
 import { translate } from "@docusaurus/Translate";
 import styles from "./styles.module.css";
-import ToggleMenu from "../../../../../components/icons/ToggleMenu";
-import clsx from "clsx";
 export default function DocPageLayoutSidebarExpandButton({ toggleSidebar }) {
   return (
     <div
@@ -22,9 +20,8 @@ export default function DocPageLayoutSidebarExpandButton({ toggleSidebar }) {
       tabIndex={0}
       role="button"
       onKeyDown={toggleSidebar}
-      onClick={toggleSidebar}
-    >
-      <ToggleMenu className="rotate-180 self-start mt-[120px] " />
+      onClick={toggleSidebar}>
+      <IconArrow className={styles.expandButtonIcon} />
     </div>
   );
 }

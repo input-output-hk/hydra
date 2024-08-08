@@ -44,7 +44,6 @@ export default function Logo(props) {
   // Use logo alt text if provided (including empty string),
   // and provide a sensible fallback otherwise.
   const alt = logo?.alt ?? fallbackAlt;
-  const isPhabletUp = useMediaQuery(forPhablet);
   return (
     <Link
       to={logoLink}
@@ -58,9 +57,7 @@ export default function Logo(props) {
           imageClassName={imageClassName}
         />
       )}
-      {navbarTitle != null && isPhabletUp && (
-        <b className={titleClassName}>{navbarTitle}</b>
-      )}
+      {navbarTitle != null && <b className={titleClassName}>{navbarTitle}</b>}
     </Link>
   );
 }

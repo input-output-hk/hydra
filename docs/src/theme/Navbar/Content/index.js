@@ -11,9 +11,6 @@ import NavbarMobileSidebarToggle from "@theme/Navbar/MobileSidebar/Toggle";
 import NavbarLogo from "@theme/Navbar/Logo";
 import NavbarSearch from "@theme/Navbar/Search";
 import styles from "./styles.module.css";
-import { GithubSmall } from "../../../components/icons/Github";
-import Discord from "../../../components/icons/Discord";
-
 function useNavbarItems() {
   // TODO temporary casting until ThemeConfig type is improved
   return useThemeConfig().navbar.items;
@@ -55,12 +52,16 @@ export default function NavbarContent() {
   return (
     <NavbarContentLayout
       left={
+        // TODO stop hardcoding items?
         <>
+          {!mobileSidebar.disabled && <NavbarMobileSidebarToggle />}
           <NavbarLogo />
           <NavbarItems items={leftItems} />
         </>
       }
       right={
+        // TODO stop hardcoding items?
+        // Ask the user to add the respective navbar items => more flexible
         <>
           <NavbarItems items={rightItems} />
           <NavbarColorModeToggle className={styles.colorModeToggle} />
@@ -69,23 +70,6 @@ export default function NavbarContent() {
               <SearchBar />
             </NavbarSearch>
           )}
-          <a
-            href="https://github.com/cardano-scaling/hydra"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-teal-light mx-3 py-1"
-          >
-            <GithubSmall />
-          </a>
-          <a
-            href="https://github.com/cardano-scaling/hydra"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-teal-light mx-3 py-1"
-          >
-            <Discord />
-          </a>
-          {!mobileSidebar.disabled && <NavbarMobileSidebarToggle />}
         </>
       }
     />

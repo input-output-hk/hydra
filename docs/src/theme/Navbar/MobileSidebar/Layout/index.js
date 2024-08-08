@@ -1,7 +1,6 @@
 import React from "react";
 import clsx from "clsx";
 import { useNavbarSecondaryMenu } from "@docusaurus/theme-common/internal";
-import { motion } from "framer-motion";
 export default function NavbarMobileSidebarLayout({
   header,
   primaryMenu,
@@ -9,7 +8,7 @@ export default function NavbarMobileSidebarLayout({
 }) {
   const { shown: secondaryMenuShown } = useNavbarSecondaryMenu();
   return (
-    <div className="navbar-sidebar bg-teal-extralight w-full transition-transform -translate-y-full">
+    <div className="navbar-sidebar">
       {header}
       <div
         className={clsx("navbar-sidebar__items", {

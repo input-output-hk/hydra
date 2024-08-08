@@ -3,7 +3,7 @@ import Link from "@docusaurus/Link";
 import useBaseUrl from "@docusaurus/useBaseUrl";
 import { translate } from "@docusaurus/Translate";
 import styles from "./styles.module.css";
-import Home from "../../../../components/icons/Home";
+import IconHome from '@theme/Icon/Home';
 export default function HomeBreadcrumbItem() {
   const homeHref = useBaseUrl("/");
   return (
@@ -15,9 +15,8 @@ export default function HomeBreadcrumbItem() {
           description: "The ARIA label for the home page in the breadcrumbs",
         })}
         className="breadcrumbs__link"
-        href={homeHref}
-      >
-        <Home className={styles.breadcrumbHomeIcon} />
+        href={homeHref}>
+        <IconHome className={styles.breadcrumbHomeIcon} />
       </Link>
     </li>
   );

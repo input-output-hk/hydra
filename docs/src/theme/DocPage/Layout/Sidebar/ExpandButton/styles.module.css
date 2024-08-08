@@ -17,6 +17,10 @@
     background-color: var(--docusaurus-collapse-button-bg-hover);
   }
 
+  .expandButtonIcon {
+    transform: rotate(0);
+  }
+
   [dir="rtl"] .expandButtonIcon {
     transform: rotate(180deg);
   }

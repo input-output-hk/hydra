@@ -8,10 +8,6 @@ import {
 import { translate } from "@docusaurus/Translate";
 import NavbarMobileSidebar from "@theme/Navbar/MobileSidebar";
 import styles from "./styles.module.css";
-
-import { useLocation } from "@docusaurus/router";
-import { useScroll, motion, useTransform } from "framer-motion";
-
 function NavbarBackdrop(props) {
   return (
     <div
@@ -21,59 +17,36 @@ function NavbarBackdrop(props) {
     />
   );
 }
-export default function NavbarLayout({ children }) {
-  const { scrollY } = useScroll();
-  const y = useTransform(
-    scrollY,
-    [0, 70],
-    ["rgba(255, 255, 255, 0)", "rgba(255, 255, 255, 1)"]
-  );
-  const location = useLocation();
+export default function NavbarLayout({children}) {
   const {
-    navbar: { hideOnScroll },
+    navbar: {hideOnScroll, style},
   } = useThemeConfig();
   const mobileSidebar = useNavbarMobileSidebar();
   const { navbarRef, isNavbarVisible } = useHideableNavbar(hideOnScroll);
   return (
-    <motion.header
-      style={
-        (location.pathname === "/" ||
-          location.pathname === "/head-protocol/") && {
-          backgroundColor: y,
-        }
-      }
+    <nav
       ref={navbarRef}
       aria-label={translate({
-        id: "theme.NavBar.navAriaLabel",
-        message: "Main",
-        description: "The ARIA label for the main navigation",
+        id: 'theme.NavBar.navAriaLabel',
+        message: 'Main',
+        description: 'The ARIA label for the main navigation',
       })}
       className={clsx(
-        "flex navbar tablet:py-[30px] px-0 shadow-none z-50",
-        location.pathname === "/" || location.pathname === "/head-protocol/"
-          ? "border-none pt-3"
-          : "border-b border-[#EAEAEB] pt-3 pb-4 tablet:px-2",
         "navbar--fixed-top",
+        'navbar',
         hideOnScroll && [
-          // styles.navbarHideable,
+          styles.navbarHideable,
           !isNavbarVisible && styles.navbarHidden,
         ],
         {
-          "navbar-sidebar--show": mobileSidebar.shown,
-        }
-      )}
-    >
-      <div
-        className={clsx(
-          location.pathname === "/" || location.pathname === "/head-protocol/"
-            ? "pageContainer"
-            : "w-full px-6"
-        )}
-      >
-        {children}
-      </div>
+          'navbar--dark': style === 'dark',
+          'navbar--primary': style === 'primary',
+          'navbar-sidebar--show': mobileSidebar.shown,
+        },
+      )}>
+      {children}
       <NavbarBackdrop onClick={mobileSidebar.toggle} />
       <NavbarMobileSidebar />
-    </motion.header>
+    </nav>
   );
 }
