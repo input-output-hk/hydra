@@ -11,6 +11,7 @@ data ClientInput tx
   | Abort
   | NewTx {transaction :: tx}
   | GetUTxO
+  | Commit {commitTx :: tx}
   | Decommit {decommitTx :: tx}
   | Close
   | Contest
@@ -33,7 +34,8 @@ instance Arbitrary tx => Arbitrary (ClientInput tx) where
     Abort -> []
     NewTx tx -> NewTx <$> shrink tx
     GetUTxO -> []
-    Decommit u -> Decommit <$> shrink u
+    Commit tx -> Commit <$> shrink tx
+    Decommit tx -> Decommit <$> shrink tx
     Close -> []
     Contest -> []
     Fanout -> []
