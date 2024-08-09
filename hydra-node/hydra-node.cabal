@@ -173,6 +173,7 @@ library
     , wai-cors
     , wai-websockets
     , warp
+    , warp-tls
     , websockets
 
   ghc-options:     -haddock
@@ -364,6 +365,7 @@ test-suite tests
     , io-sim
     , lens
     , lens-aeson
+    , network-simple-wss
     , plutus-ledger-api:{plutus-ledger-api, plutus-ledger-api-testlib}  >=1.1.1.0
     , plutus-tx
     , pretty-simple
@@ -377,6 +379,7 @@ test-suite tests
     , temporary
     , text
     , time
+    , tls
     , typed-protocols-examples                                          >=0.1.0.0
     , vector
     , websockets

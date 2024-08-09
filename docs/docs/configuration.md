@@ -147,7 +147,7 @@ Using a _blueprint_ transaction with `/commit` allows for more flexibility since
 
 For more details refere to the [how to](./how-to/commit-blueprint) about committing to a `Head` using blueprint transaction.
 
-## Connect to Cardano
+### Connect to Cardano
 
 The `hydra-node` needs to be connected to the cardano network (unless it runs in [offline mode](./configuration.md#offline-mode)). 
 
@@ -163,7 +163,7 @@ hydra-node \
 
 The `hydra-node` is compatible with the Cardano `mainnet` network, and can consequently operate using **real funds**. Please be sure to read the [known issues](/docs/known-issues) to fully understand the limitations and consequences of running Hydra nodes on mainnet. To choose `mainnet`, use `--mainnet` instead of `--testnet-magic`. 
 
-## Offline mode
+### Offline mode
 
 Hydra supports an offline mode, which allows for disabling the Layer 1 interface (that is, the underlying Cardano blockchain which Hydra heads use to seed funds and ultimately funds are withdrawn to). Disabling Layer 1 interactions allows use-cases which would otherwise require running and configuring an entire Layer 1 private devnet. For example, the offline mode can be used to quickly validate a series of transactions against a UTxO, without having to spin up an entire Layer 1 Cardano node.
 
@@ -172,6 +172,24 @@ Depending on your use case, you can [configure your node's event source and sink
 
 To initialize the Layer 2 ledger's UTXO state, offline mode takes an obligatory --initial-utxo parameter, which points to a JSON encoded UTXO file. This UTXO is independent of Event Source loaded events, and the latter are validated against this UTXO. The UTXO follows the following schema `{ txout : {address, value : {asset : quantity}, datum, datumhash, inlinedatum, referenceScript }`
 
-An example UTXO:
-```json
-{"1541287c2598ffc682742c961a96343ac64e9b9030e6b03a476bb18c8c50134d#0":{"address":"addr_test1vqg9ywrpx6e50uam03nlu0ewunh3yrscxmjayurmkp52lfskgkq5k","datum":null,"datumhash":null,"inlineDatum":null,"referenceScript":null,"value":{"lovelace":100000000}},"39786f186d94d8dd0b4fcf05d1458b18cd5fd8c6823364612f4a3c11b77e7cc7#0":{"address":"addr_test1vru2drx33ev6dt8gfq245r5k0tmy7ngqe79va69de9dxkrg09c7d3","datum":null,"datumhash":null,"inlineDatum":null,"referenceScript":null,"value":{"lovelace":100000000}}}```
+An offline mode hydra-node can be started with:
+```shell
+hydra-node offline \
+  --hydra-signing-key hydra.sk \
+  --ledger-protocol-parameters protocol-parameters.json \
+  --initial-utxo utxo.json
+```
+
+As the node is not connected to a real network, genesis parameters that normally influence things like time-based transaction validation cannot be fetched and are set to defaults. To configure block times, set `--ledger-genesis` to a Shelley genesis file similar to the [shelley-genesis.json](https://book.world.dev.cardano.org/environments/mainnet/shelley-genesis.json).
+
+### API server
+
+The `hydra-node` exposes an [API](/api-reference) for clients to interact with the hydra node, submit transactions to an open, but also initialize / close Hydra heads!
+
+As the API is not authenticated by default, the node is only binding to `localhost`/`127.0.0.1` interfaces and listens on port `4001`. This can be configured using `--api-host` and `--api-port`.
+
+:::warning
+The API is not authenticated and if exposed, an open head can be easily closed through the API!
+:::
+
+The API server also supports `TLS` connections (`https://` and `wss://`) when a certificate and key are configured with `--tls-cert` and `--tls-key` respectively.
