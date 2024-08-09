@@ -1,0 +1,137 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Hydra.HeadLogic.SnapshotOutcome</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/Data.List.html"><span class="hs-identifier">Data.List</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/Data.OldList.html#elemIndex"><span class="hs-identifier">elemIndex</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Hydra.Chain.html"><span class="hs-identifier">Hydra.Chain</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.Chain.html#HeadParameters"><span class="hs-identifier">HeadParameters</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Hydra.Party.html"><span class="hs-identifier">Hydra.Party</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.Party.html#Party"><span class="hs-identifier">Party</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Prelude</span></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Hydra.Snapshot.html"><span class="hs-identifier">Hydra.Snapshot</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.Snapshot.html#SnapshotNumber"><span class="hs-identifier">SnapshotNumber</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="annot"><span class="hs-comment">-- * Snapshot helper functions</span></span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">data</span><span> </span><span id="SnapshotOutcome"><span class="annot"><a href="Hydra.HeadLogic.SnapshotOutcome.html#SnapshotOutcome"><span class="hs-identifier hs-var">SnapshotOutcome</span></a></span></span><span> </span><span id="local-6989586621680305502"><span class="annot"><a href="#local-6989586621680305502"><span class="hs-identifier hs-type">tx</span></a></span></span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="ShouldSnapshot"><span class="annot"><a href="Hydra.HeadLogic.SnapshotOutcome.html#ShouldSnapshot"><span class="hs-identifier hs-var">ShouldSnapshot</span></a></span></span><span> </span><span class="annot"><a href="Hydra.Snapshot.html#SnapshotNumber"><span class="hs-identifier hs-type">SnapshotNumber</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621680305502"><span class="hs-identifier hs-type">tx</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-comment">-- TODO(AB) : should really be a Set (TxId tx)</span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ShouldNotSnapshot"><span class="annot"><a href="Hydra.HeadLogic.SnapshotOutcome.html#ShouldNotSnapshot"><span class="hs-identifier hs-var">ShouldNotSnapshot</span></a></span></span><span> </span><span class="annot"><a href="Hydra.HeadLogic.SnapshotOutcome.html#NoSnapshotReason"><span class="hs-identifier hs-type">NoSnapshotReason</span></a></span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621680305507"><span id="local-6989586621680305515"><span class="annot"><span class="annottext">SnapshotOutcome tx -&gt; SnapshotOutcome tx -&gt; Bool
+(SnapshotOutcome tx -&gt; SnapshotOutcome tx -&gt; Bool)
+-&gt; (SnapshotOutcome tx -&gt; SnapshotOutcome tx -&gt; Bool)
+-&gt; Eq (SnapshotOutcome tx)
+forall tx.
+Eq tx =&gt;
+SnapshotOutcome tx -&gt; SnapshotOutcome tx -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: forall tx.
+Eq tx =&gt;
+SnapshotOutcome tx -&gt; SnapshotOutcome tx -&gt; Bool
+== :: SnapshotOutcome tx -&gt; SnapshotOutcome tx -&gt; Bool
+$c/= :: forall tx.
+Eq tx =&gt;
+SnapshotOutcome tx -&gt; SnapshotOutcome tx -&gt; Bool
+/= :: SnapshotOutcome tx -&gt; SnapshotOutcome tx -&gt; Bool
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/ghc-prim-0.10.0/src/GHC.Classes.html#Eq"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></a></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680305521"><span id="local-6989586621680305532"><span id="local-6989586621680305536"><span class="annot"><span class="annottext">Int -&gt; SnapshotOutcome tx -&gt; ShowS
+[SnapshotOutcome tx] -&gt; ShowS
+SnapshotOutcome tx -&gt; String
+(Int -&gt; SnapshotOutcome tx -&gt; ShowS)
+-&gt; (SnapshotOutcome tx -&gt; String)
+-&gt; ([SnapshotOutcome tx] -&gt; ShowS)
+-&gt; Show (SnapshotOutcome tx)
+forall tx. Show tx =&gt; Int -&gt; SnapshotOutcome tx -&gt; ShowS
+forall tx. Show tx =&gt; [SnapshotOutcome tx] -&gt; ShowS
+forall tx. Show tx =&gt; SnapshotOutcome tx -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: forall tx. Show tx =&gt; Int -&gt; SnapshotOutcome tx -&gt; ShowS
+showsPrec :: Int -&gt; SnapshotOutcome tx -&gt; ShowS
+$cshow :: forall tx. Show tx =&gt; SnapshotOutcome tx -&gt; String
+show :: SnapshotOutcome tx -&gt; String
+$cshowList :: forall tx. Show tx =&gt; [SnapshotOutcome tx] -&gt; ShowS
+showList :: [SnapshotOutcome tx] -&gt; ShowS
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Show.html#Show"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></a></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680305540"><span id="local-6989586621680305542"><span class="annot"><span class="annottext">(forall x. SnapshotOutcome tx -&gt; Rep (SnapshotOutcome tx) x)
+-&gt; (forall x. Rep (SnapshotOutcome tx) x -&gt; SnapshotOutcome tx)
+-&gt; Generic (SnapshotOutcome tx)
+forall x. Rep (SnapshotOutcome tx) x -&gt; SnapshotOutcome tx
+forall x. SnapshotOutcome tx -&gt; Rep (SnapshotOutcome tx) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall tx x. Rep (SnapshotOutcome tx) x -&gt; SnapshotOutcome tx
+forall tx x. SnapshotOutcome tx -&gt; Rep (SnapshotOutcome tx) x
+$cfrom :: forall tx x. SnapshotOutcome tx -&gt; Rep (SnapshotOutcome tx) x
+from :: forall x. SnapshotOutcome tx -&gt; Rep (SnapshotOutcome tx) x
+$cto :: forall tx x. Rep (SnapshotOutcome tx) x -&gt; SnapshotOutcome tx
+to :: forall x. Rep (SnapshotOutcome tx) x -&gt; SnapshotOutcome tx
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Generics.html#Generic"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></a></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">data</span><span> </span><span id="NoSnapshotReason"><span class="annot"><a href="Hydra.HeadLogic.SnapshotOutcome.html#NoSnapshotReason"><span class="hs-identifier hs-var">NoSnapshotReason</span></a></span></span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="NotLeader"><span class="annot"><a href="Hydra.HeadLogic.SnapshotOutcome.html#NotLeader"><span class="hs-identifier hs-var">NotLeader</span></a></span></span><span> </span><span class="annot"><a href="Hydra.Snapshot.html#SnapshotNumber"><span class="hs-identifier hs-type">SnapshotNumber</span></a></span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SnapshotInFlight"><span class="annot"><a href="Hydra.HeadLogic.SnapshotOutcome.html#SnapshotInFlight"><span class="hs-identifier hs-var">SnapshotInFlight</span></a></span></span><span> </span><span class="annot"><a href="Hydra.Snapshot.html#SnapshotNumber"><span class="hs-identifier hs-type">SnapshotNumber</span></a></span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="NoTransactionsToSnapshot"><span class="annot"><a href="Hydra.HeadLogic.SnapshotOutcome.html#NoTransactionsToSnapshot"><span class="hs-identifier hs-var">NoTransactionsToSnapshot</span></a></span></span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621680305549"><span id="local-6989586621680305553"><span class="annot"><span class="annottext">NoSnapshotReason -&gt; NoSnapshotReason -&gt; Bool
+(NoSnapshotReason -&gt; NoSnapshotReason -&gt; Bool)
+-&gt; (NoSnapshotReason -&gt; NoSnapshotReason -&gt; Bool)
+-&gt; Eq NoSnapshotReason
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: NoSnapshotReason -&gt; NoSnapshotReason -&gt; Bool
+== :: NoSnapshotReason -&gt; NoSnapshotReason -&gt; Bool
+$c/= :: NoSnapshotReason -&gt; NoSnapshotReason -&gt; Bool
+/= :: NoSnapshotReason -&gt; NoSnapshotReason -&gt; Bool
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/ghc-prim-0.10.0/src/GHC.Classes.html#Eq"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></a></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680305556"><span id="local-6989586621680305562"><span id="local-6989586621680305565"><span class="annot"><span class="annottext">Int -&gt; NoSnapshotReason -&gt; ShowS
+[NoSnapshotReason] -&gt; ShowS
+NoSnapshotReason -&gt; String
+(Int -&gt; NoSnapshotReason -&gt; ShowS)
+-&gt; (NoSnapshotReason -&gt; String)
+-&gt; ([NoSnapshotReason] -&gt; ShowS)
+-&gt; Show NoSnapshotReason
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; NoSnapshotReason -&gt; ShowS
+showsPrec :: Int -&gt; NoSnapshotReason -&gt; ShowS
+$cshow :: NoSnapshotReason -&gt; String
+show :: NoSnapshotReason -&gt; String
+$cshowList :: [NoSnapshotReason] -&gt; ShowS
+showList :: [NoSnapshotReason] -&gt; ShowS
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Show.html#Show"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></a></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680305568"><span id="local-6989586621680305570"><span class="annot"><span class="annottext">(forall x. NoSnapshotReason -&gt; Rep NoSnapshotReason x)
+-&gt; (forall x. Rep NoSnapshotReason x -&gt; NoSnapshotReason)
+-&gt; Generic NoSnapshotReason
+forall x. Rep NoSnapshotReason x -&gt; NoSnapshotReason
+forall x. NoSnapshotReason -&gt; Rep NoSnapshotReason x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. NoSnapshotReason -&gt; Rep NoSnapshotReason x
+from :: forall x. NoSnapshotReason -&gt; Rep NoSnapshotReason x
+$cto :: forall x. Rep NoSnapshotReason x -&gt; NoSnapshotReason
+to :: forall x. Rep NoSnapshotReason x -&gt; NoSnapshotReason
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Generics.html#Generic"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></a></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="annot"><a href="Hydra.HeadLogic.SnapshotOutcome.html#isLeader"><span class="hs-identifier hs-type">isLeader</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Hydra.Chain.html#HeadParameters"><span class="hs-identifier hs-type">HeadParameters</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Hydra.Party.html#Party"><span class="hs-identifier hs-type">Party</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Hydra.Snapshot.html#SnapshotNumber"><span class="hs-identifier hs-type">SnapshotNumber</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/ghc-prim-0.10.0/src/GHC.Types.html#Bool"><span class="hs-identifier hs-type">Bool</span></a></span><span>
+</span><span id="line-23"></span><span id="isLeader"><span class="annot"><span class="annottext">isLeader :: HeadParameters -&gt; Party -&gt; SnapshotNumber -&gt; Bool
+</span><a href="Hydra.HeadLogic.SnapshotOutcome.html#isLeader"><span class="hs-identifier hs-var hs-var">isLeader</span></a></span></span><span> </span><span class="annot"><a href="Hydra.Chain.html#HeadParameters"><span class="hs-identifier hs-type">HeadParameters</span></a></span><span class="hs-special">{</span><span id="local-6989586621680305574"><span class="annot"><span class="annottext">[Party]
+parties :: [Party]
+$sel:parties:HeadParameters :: HeadParameters -&gt; [Party]
+</span><a href="#local-6989586621680305574"><span class="hs-identifier hs-var hs-var">parties</span></a></span></span><span class="hs-special">}</span><span> </span><span id="local-6989586621680305576"><span class="annot"><span class="annottext">Party
+</span><a href="#local-6989586621680305576"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621680305577"><span class="annot"><span class="annottext">SnapshotNumber
+</span><a href="#local-6989586621680305577"><span class="hs-identifier hs-var">sn</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Party
+</span><a href="#local-6989586621680305576"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Party -&gt; [Party] -&gt; Maybe Int
+forall a. Eq a =&gt; a -&gt; [a] -&gt; Maybe Int
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/Data.OldList.html#elemIndex"><span class="hs-operator hs-var">`elemIndex`</span></a></span><span> </span><span class="annot"><span class="annottext">[Party]
+</span><a href="#local-6989586621680305574"><span class="hs-identifier hs-var">parties</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-25"></span><span>    </span><span class="annot"><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Maybe.html#Just"><span class="hs-identifier hs-type">Just</span></a></span><span> </span><span id="local-6989586621680305578"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680305578"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">SnapshotNumber -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Real.html#fromIntegral"><span class="hs-identifier hs-var">fromIntegral</span></a></span><span> </span><span class="annot"><span class="annottext">SnapshotNumber
+</span><a href="#local-6989586621680305577"><span class="hs-identifier hs-var">sn</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Num.html#-"><span class="hs-glyph hs-var">-</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Real.html#mod"><span class="hs-operator hs-var">`mod`</span></a></span><span> </span><span class="annot"><span class="annottext">[Party] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/Data.Foldable.html#length"><span class="hs-identifier hs-var">length</span></a></span><span> </span><span class="annot"><span class="annottext">[Party]
+</span><a href="#local-6989586621680305574"><span class="hs-identifier hs-var">parties</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/ghc-prim-0.10.0/src/GHC.Classes.html#%3D%3D"><span class="hs-operator hs-var">==</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680305578"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-26"></span><span>    </span><span class="annot"><span class="annottext">Maybe Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/ghc-prim-0.10.0/src/GHC.Types.html#False"><span class="hs-identifier hs-var">False</span></a></span><span>
+</span><span id="line-27"></span></pre></body></html>

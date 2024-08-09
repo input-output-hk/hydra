@@ -1,0 +1,236 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-orphans #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="annot"><span class="hs-comment">-- | Generic Cardano constants for use in testing.</span></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Hydra.Chain.Direct.Fixture</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Hydra.Chain.Direct.Fixture.html"><span class="hs-identifier">Hydra.Chain.Direct.Fixture</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>  </span><span class="annot"><a href="Hydra.Ledger.Cardano.Evaluate.html#pparams"><span class="hs-identifier">pparams</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>  </span><span class="annot"><a href="Hydra.Ledger.Cardano.Evaluate.html#systemStart"><span class="hs-identifier">systemStart</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>  </span><span class="annot"><a href="Hydra.Ledger.Cardano.Evaluate.html#slotLength"><span class="hs-identifier">slotLength</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>  </span><span class="annot"><a href="Hydra.Ledger.Cardano.Evaluate.html#epochInfo"><span class="hs-identifier">epochInfo</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Prelude</span></span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Cardano.Ledger.Alonzo.Core</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ppPricesL</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Cardano.Ledger.Alonzo.Scripts</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Prices</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Cardano.Ledger.BaseTypes</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">BoundedRational</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Cardano.Ledger.BaseTypes</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Ledger</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Cardano.Ledger.Coin</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Coin</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Cardano.Ledger.Core</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">PParams</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">ppMinFeeAL</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">ppMinFeeBL</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Cardano.Slotting.Time</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Slotting</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Lens</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(.~)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/Data.Maybe.html"><span class="hs-identifier">Data.Maybe</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/Data.Maybe.html#fromJust"><span class="hs-identifier">fromJust</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/time-1.12.2/src/Data.Time.Clock.POSIX.html"><span class="hs-identifier">Data.Time.Clock.POSIX</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/time-1.12.2/src/Data.Time.Clock.POSIX.html#posixSecondsToUTCTime"><span class="hs-identifier">posixSecondsToUTCTime</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Cardano.Api</span></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-26"></span><span>  </span><span class="annot"><span class="hs-identifier">LedgerEra</span></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>  </span><span class="annot"><span class="hs-identifier">NetworkId</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Testnet</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>  </span><span class="annot"><span class="hs-identifier">NetworkMagic</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">NetworkMagic</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>  </span><span class="annot"><span class="hs-identifier">PolicyId</span></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>  </span><span class="annot"><span class="hs-identifier">TxIn</span></span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>  </span><span class="annot"><span class="hs-identifier">genTxIn</span></span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Contract.HeadTokens</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">headPolicyId</span></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Hydra.Ledger.Cardano.html"><span class="hs-identifier">Hydra.Ledger.Cardano</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Hydra.Ledger.Cardano.Configuration.html"><span class="hs-identifier">Hydra.Ledger.Cardano.Configuration</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">LedgerEnv</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Hydra.Ledger.Cardano.Configuration.html#newLedgerEnv"><span class="hs-identifier">newLedgerEnv</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Hydra.Ledger.Cardano.Evaluate.html"><span class="hs-identifier">Hydra.Ledger.Cardano.Evaluate</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.Ledger.Cardano.Evaluate.html#epochInfo"><span class="hs-identifier">epochInfo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Hydra.Ledger.Cardano.Evaluate.html#pparams"><span class="hs-identifier">pparams</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Hydra.Ledger.Cardano.Evaluate.html#slotLength"><span class="hs-identifier">slotLength</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Hydra.Ledger.Cardano.Evaluate.html#systemStart"><span class="hs-identifier">systemStart</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="annot"><span class="hs-comment">-- * Cardano tx utilities</span></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="annot"><a href="Hydra.Chain.Direct.Fixture.html#testNetworkId"><span class="hs-identifier hs-type">testNetworkId</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NetworkId</span></span><span>
+</span><span id="line-41"></span><span id="testNetworkId"><span class="annot"><span class="annottext">testNetworkId :: NetworkId
+</span><a href="Hydra.Chain.Direct.Fixture.html#testNetworkId"><span class="hs-identifier hs-var hs-var">testNetworkId</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NetworkMagic -&gt; NetworkId
+</span><span class="hs-identifier hs-var">Testnet</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word32 -&gt; NetworkMagic
+</span><span class="hs-identifier hs-var">NetworkMagic</span></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">42</span></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="annot"><a href="Hydra.Chain.Direct.Fixture.html#testPolicyId"><span class="hs-identifier hs-type">testPolicyId</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">PolicyId</span></span><span>
+</span><span id="line-44"></span><span id="testPolicyId"><span class="annot"><span class="annottext">testPolicyId :: PolicyId
+</span><a href="Hydra.Chain.Direct.Fixture.html#testPolicyId"><span class="hs-identifier hs-var hs-var">testPolicyId</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TxIn -&gt; PolicyId
+</span><span class="hs-identifier hs-var">headPolicyId</span></span><span> </span><span class="annot"><span class="annottext">TxIn
+</span><a href="Hydra.Chain.Direct.Fixture.html#testSeedInput"><span class="hs-identifier hs-var">testSeedInput</span></a></span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="annot"><a href="Hydra.Chain.Direct.Fixture.html#testSeedInput"><span class="hs-identifier hs-type">testSeedInput</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TxIn</span></span><span>
+</span><span id="line-47"></span><span id="testSeedInput"><span class="annot"><span class="annottext">testSeedInput :: TxIn
+</span><a href="Hydra.Chain.Direct.Fixture.html#testSeedInput"><span class="hs-identifier hs-var hs-var">testSeedInput</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Gen TxIn -&gt; Int -&gt; TxIn
+forall a. Gen a -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">generateWith</span></span><span> </span><span class="annot"><span class="annottext">Gen TxIn
+</span><span class="hs-identifier hs-var">genTxIn</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">42</span></span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- | Default environment for the L2 ledger using the fixed L1 'pparams' with</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- zeroed fees and prices. NOTE: This is using still a constant SlotNo = 1.</span><span>
+</span><span id="line-51"></span><span class="annot"><a href="Hydra.Chain.Direct.Fixture.html#defaultLedgerEnv"><span class="hs-identifier hs-type">defaultLedgerEnv</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">LedgerEnv</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">LedgerEra</span></span><span>
+</span><span id="line-52"></span><span id="defaultLedgerEnv"><span class="annot"><span class="annottext">defaultLedgerEnv :: LedgerEnv LedgerEra
+</span><a href="Hydra.Chain.Direct.Fixture.html#defaultLedgerEnv"><span class="hs-identifier hs-var hs-var">defaultLedgerEnv</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PParams LedgerEra -&gt; LedgerEnv LedgerEra
+</span><a href="Hydra.Ledger.Cardano.Configuration.html#newLedgerEnv"><span class="hs-identifier hs-var">newLedgerEnv</span></a></span><span> </span><span class="annot"><span class="annottext">PParams LedgerEra
+</span><a href="Hydra.Chain.Direct.Fixture.html#defaultPParams"><span class="hs-identifier hs-var">defaultPParams</span></a></span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="annot"><a href="Hydra.Chain.Direct.Fixture.html#defaultPParams"><span class="hs-identifier hs-type">defaultPParams</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">PParams</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">LedgerEra</span></span><span>
+</span><span id="line-55"></span><span id="defaultPParams"><span class="annot"><span class="annottext">defaultPParams :: PParams LedgerEra
+</span><a href="Hydra.Chain.Direct.Fixture.html#defaultPParams"><span class="hs-identifier hs-var hs-var">defaultPParams</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-56"></span><span>  </span><span class="annot"><span class="annottext">PParams LedgerEra
+PParams StandardBabbage
+</span><a href="Hydra.Ledger.Cardano.Evaluate.html#pparams"><span class="hs-identifier hs-var">pparams</span></a></span><span>
+</span><span id="line-57"></span><span>    </span><span class="annot"><span class="annottext">PParams StandardBabbage
+-&gt; (PParams StandardBabbage -&gt; PParams StandardBabbage)
+-&gt; PParams StandardBabbage
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/Data.Function.html#%26"><span class="hs-operator hs-var">&amp;</span></a></span><span> </span><span class="annot"><span class="annottext">(Prices -&gt; Identity Prices)
+-&gt; PParams StandardBabbage -&gt; Identity (PParams StandardBabbage)
+forall era. AlonzoEraPParams era =&gt; Lens' (PParams era) Prices
+Lens' (PParams StandardBabbage) Prices
+</span><span class="hs-identifier hs-var">ppPricesL</span></span><span>
+</span><span id="line-58"></span><span>      </span><span class="annot"><span class="annottext">((Prices -&gt; Identity Prices)
+ -&gt; PParams StandardBabbage -&gt; Identity (PParams StandardBabbage))
+-&gt; Prices -&gt; PParams StandardBabbage -&gt; PParams StandardBabbage
+forall s t a b. ASetter s t a b -&gt; b -&gt; s -&gt; t
+</span><span class="hs-operator hs-var">.~</span></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Prices</span></span><span>
+</span><span id="line-59"></span><span>            </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">prMem :: NonNegativeInterval
+</span><span class="hs-identifier hs-var">prMem</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe NonNegativeInterval -&gt; NonNegativeInterval
+forall a. HasCallStack =&gt; Maybe a -&gt; a
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/Data.Maybe.html#fromJust"><span class="hs-identifier hs-var">fromJust</span></a></span><span> </span><span class="annot"><span class="annottext">(Maybe NonNegativeInterval -&gt; NonNegativeInterval)
+-&gt; Maybe NonNegativeInterval -&gt; NonNegativeInterval
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">Rational -&gt; Maybe NonNegativeInterval
+forall r. BoundedRational r =&gt; Rational -&gt; Maybe r
+</span><span class="hs-identifier hs-var">boundRational</span></span><span> </span><span class="annot"><span class="annottext">Rational
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-60"></span><span>            </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">prSteps :: NonNegativeInterval
+</span><a href="#local-6989586621680275169"><span class="hs-identifier hs-var">prSteps</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe NonNegativeInterval -&gt; NonNegativeInterval
+forall a. HasCallStack =&gt; Maybe a -&gt; a
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/Data.Maybe.html#fromJust"><span class="hs-identifier hs-var">fromJust</span></a></span><span> </span><span class="annot"><span class="annottext">(Maybe NonNegativeInterval -&gt; NonNegativeInterval)
+-&gt; Maybe NonNegativeInterval -&gt; NonNegativeInterval
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">Rational -&gt; Maybe NonNegativeInterval
+forall r. BoundedRational r =&gt; Rational -&gt; Maybe r
+</span><span class="hs-identifier hs-var">boundRational</span></span><span> </span><span class="annot"><span class="annottext">Rational
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-61"></span><span>            </span><span class="hs-special">}</span><span>
+</span><span id="line-62"></span><span>         </span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span>    </span><span class="annot"><span class="annottext">PParams StandardBabbage
+-&gt; (PParams StandardBabbage -&gt; PParams StandardBabbage)
+-&gt; PParams StandardBabbage
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/Data.Function.html#%26"><span class="hs-operator hs-var">&amp;</span></a></span><span> </span><span class="annot"><span class="annottext">(Coin -&gt; Identity Coin)
+-&gt; PParams StandardBabbage -&gt; Identity (PParams StandardBabbage)
+forall era. EraPParams era =&gt; Lens' (PParams era) Coin
+Lens' (PParams StandardBabbage) Coin
+</span><span class="hs-identifier hs-var">ppMinFeeAL</span></span><span> </span><span class="annot"><span class="annottext">((Coin -&gt; Identity Coin)
+ -&gt; PParams StandardBabbage -&gt; Identity (PParams StandardBabbage))
+-&gt; Coin -&gt; PParams StandardBabbage -&gt; PParams StandardBabbage
+forall s t a b. ASetter s t a b -&gt; b -&gt; s -&gt; t
+</span><span class="hs-operator hs-var">.~</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Coin
+</span><span class="hs-identifier hs-var">Coin</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-64"></span><span>    </span><span class="annot"><span class="annottext">PParams StandardBabbage
+-&gt; (PParams StandardBabbage -&gt; PParams StandardBabbage)
+-&gt; PParams StandardBabbage
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/Data.Function.html#%26"><span class="hs-operator hs-var">&amp;</span></a></span><span> </span><span class="annot"><span class="annottext">(Coin -&gt; Identity Coin)
+-&gt; PParams StandardBabbage -&gt; Identity (PParams StandardBabbage)
+forall era. EraPParams era =&gt; Lens' (PParams era) Coin
+Lens' (PParams StandardBabbage) Coin
+</span><span class="hs-identifier hs-var">ppMinFeeBL</span></span><span> </span><span class="annot"><span class="annottext">((Coin -&gt; Identity Coin)
+ -&gt; PParams StandardBabbage -&gt; Identity (PParams StandardBabbage))
+-&gt; Coin -&gt; PParams StandardBabbage -&gt; PParams StandardBabbage
+forall s t a b. ASetter s t a b -&gt; b -&gt; s -&gt; t
+</span><span class="hs-operator hs-var">.~</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Coin
+</span><span class="hs-identifier hs-var">Coin</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="annot"><a href="Hydra.Chain.Direct.Fixture.html#defaultGlobals"><span class="hs-identifier hs-type">defaultGlobals</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ledger.Globals</span></span><span>
+</span><span id="line-67"></span><span id="defaultGlobals"><span class="annot"><span class="annottext">defaultGlobals :: Globals
+</span><a href="Hydra.Chain.Direct.Fixture.html#defaultGlobals"><span class="hs-identifier hs-var hs-var">defaultGlobals</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-68"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Ledger.Globals</span></span><span>
+</span><span id="line-69"></span><span>    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">epochInfo :: EpochInfo (Either Text)
+</span><span class="hs-identifier hs-var">Ledger.epochInfo</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">EpochInfo (Either Text)
+forall (m :: * -&gt; *). Monad m =&gt; EpochInfo m
+</span><a href="Hydra.Ledger.Cardano.Evaluate.html#epochInfo"><span class="hs-identifier hs-var">epochInfo</span></a></span><span>
+</span><span id="line-70"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">slotsPerKESPeriod :: Word64
+</span><span class="hs-identifier hs-var">Ledger.slotsPerKESPeriod</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">20</span></span><span>
+</span><span id="line-71"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">stabilityWindow :: Word64
+</span><span class="hs-identifier hs-var">Ledger.stabilityWindow</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">33</span></span><span>
+</span><span id="line-72"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">randomnessStabilisationWindow :: Word64
+</span><span class="hs-identifier hs-var">Ledger.randomnessStabilisationWindow</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">33</span></span><span>
+</span><span id="line-73"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">securityParameter :: Word64
+</span><span class="hs-identifier hs-var">Ledger.securityParameter</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">10</span></span><span>
+</span><span id="line-74"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">maxKESEvo :: Word64
+</span><span class="hs-identifier hs-var">Ledger.maxKESEvo</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">10</span></span><span>
+</span><span id="line-75"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">quorum :: Word64
+</span><span class="hs-identifier hs-var">Ledger.quorum</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">5</span></span><span>
+</span><span id="line-76"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">maxMajorPV :: Version
+</span><span class="hs-identifier hs-var">Ledger.maxMajorPV</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Version
+forall a. Bounded a =&gt; a
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Enum.html#maxBound"><span class="hs-identifier hs-var">maxBound</span></a></span><span>
+</span><span id="line-77"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">maxLovelaceSupply :: Word64
+</span><span class="hs-identifier hs-var">Ledger.maxLovelaceSupply</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">45</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Word64
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Num.html#%2A"><span class="hs-operator hs-var">*</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">1000</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Word64
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Num.html#%2A"><span class="hs-operator hs-var">*</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">1000</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Word64
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Num.html#%2A"><span class="hs-operator hs-var">*</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">1000</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Word64
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Num.html#%2A"><span class="hs-operator hs-var">*</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">1000</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Word64
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Num.html#%2A"><span class="hs-operator hs-var">*</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">1000</span></span><span>
+</span><span id="line-78"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">activeSlotCoeff :: ActiveSlotCoeff
+</span><span class="hs-identifier hs-var">Ledger.activeSlotCoeff</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PositiveUnitInterval -&gt; ActiveSlotCoeff
+</span><span class="hs-identifier hs-var">Ledger.mkActiveSlotCoeff</span></span><span> </span><span class="annot"><span class="annottext">(PositiveUnitInterval -&gt; ActiveSlotCoeff)
+-&gt; (Rational -&gt; PositiveUnitInterval)
+-&gt; Rational
+-&gt; ActiveSlotCoeff
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">Rational -&gt; PositiveUnitInterval
+forall {a}. BoundedRational a =&gt; Rational -&gt; a
+</span><a href="#local-6989586621680275187"><span class="hs-identifier hs-var">unsafeBoundRational</span></a></span><span> </span><span class="annot"><span class="annottext">(Rational -&gt; ActiveSlotCoeff) -&gt; Rational -&gt; ActiveSlotCoeff
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">Rational
+</span><span class="hs-number">0.9</span></span><span>
+</span><span id="line-79"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">networkId :: Network
+</span><span class="hs-identifier hs-var">Ledger.networkId</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Network
+</span><span class="hs-identifier hs-var">Ledger.Testnet</span></span><span>
+</span><span id="line-80"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">systemStart :: SystemStart
+</span><span class="hs-identifier hs-var">Ledger.systemStart</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UTCTime -&gt; SystemStart
+</span><span class="hs-identifier hs-var">Slotting.SystemStart</span></span><span> </span><span class="annot"><span class="annottext">(UTCTime -&gt; SystemStart) -&gt; UTCTime -&gt; SystemStart
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">POSIXTime -&gt; UTCTime
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/time-1.12.2/src/Data.Time.Clock.POSIX.html#posixSecondsToUTCTime"><span class="hs-identifier hs-var">posixSecondsToUTCTime</span></a></span><span> </span><span class="annot"><span class="annottext">POSIXTime
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-81"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-82"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-83"></span><span>  </span><span id="local-6989586621680275187"><span class="annot"><span class="annottext">unsafeBoundRational :: Rational -&gt; a
+</span><a href="#local-6989586621680275187"><span class="hs-identifier hs-var hs-var">unsafeBoundRational</span></a></span></span><span> </span><span id="local-6989586621680275212"><span class="annot"><span class="annottext">Rational
+</span><a href="#local-6989586621680275212"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-84"></span><span>    </span><span class="annot"><span class="annottext">a -&gt; Maybe a -&gt; a
+forall a. a -&gt; Maybe a -&gt; a
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/Data.Maybe.html#fromMaybe"><span class="hs-identifier hs-var">fromMaybe</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; a
+forall a t. (HasCallStack, IsText t) =&gt; t -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; a) -&gt; Text -&gt; a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Could not convert from Rational: &quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Rational -&gt; Text
+forall b a. (Show a, IsString b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Rational
+</span><a href="#local-6989586621680275212"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Maybe a -&gt; a) -&gt; Maybe a -&gt; a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">Rational -&gt; Maybe a
+forall r. BoundedRational r =&gt; Rational -&gt; Maybe r
+</span><span class="hs-identifier hs-var">Ledger.boundRational</span></span><span> </span><span class="annot"><span class="annottext">Rational
+</span><a href="#local-6989586621680275212"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-85"></span></pre></body></html>

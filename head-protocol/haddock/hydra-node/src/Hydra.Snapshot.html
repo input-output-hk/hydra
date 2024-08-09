@@ -1,0 +1,1016 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DuplicateRecordFields #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE UndecidableInstances #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Hydra.Snapshot</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Prelude</span></span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Cardano.Crypto.Util</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">SignableRepresentation</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Codec.Serialise</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">serialise</span></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">object</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">withObject</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(.:)</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(.=)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/bytestring-0.11.5.3/src/Data.ByteString.Lazy.html"><span class="hs-identifier">Data.ByteString.Lazy</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">LBS</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Cardano.Api</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">SigningKey</span></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Cardano.Api.Prelude</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">serialiseToRawBytes</span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Hydra.Contract.HeadState</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Onchain</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Hydra.Crypto.html"><span class="hs-identifier">Hydra.Crypto</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.Crypto.html#HydraKey"><span class="hs-identifier">HydraKey</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Hydra.Crypto.html#MultiSignature"><span class="hs-identifier">MultiSignature</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Hydra.Crypto.html#aggregate"><span class="hs-identifier">aggregate</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Hydra.Crypto.html#sign"><span class="hs-identifier">sign</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Hydra.HeadId.html"><span class="hs-identifier">Hydra.HeadId</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.HeadId.html#HeadId"><span class="hs-identifier">HeadId</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Hydra.Ledger.html"><span class="hs-identifier">Hydra.Ledger</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.Ledger.html#IsTx"><span class="hs-identifier">IsTx</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">PlutusLedgerApi.V2</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">toBuiltin</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">toData</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Test.QuickCheck</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">frequency</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">suchThat</span></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Test.QuickCheck.Instances.Natural</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">newtype</span><span> </span><span id="SnapshotNumber"><span class="annot"><a href="Hydra.Snapshot.html#SnapshotNumber"><span class="hs-identifier hs-var">SnapshotNumber</span></a></span></span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="UnsafeSnapshotNumber"><span class="annot"><a href="Hydra.Snapshot.html#UnsafeSnapshotNumber"><span class="hs-identifier hs-var">UnsafeSnapshotNumber</span></a></span></span><span> </span><span class="annot"><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/ghc-bignum-1.3/src/GHC.Num.Natural.html#Natural"><span class="hs-identifier hs-type">Natural</span></a></span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621680287992"><span id="local-6989586621680287996"><span class="annot"><span class="annottext">SnapshotNumber -&gt; SnapshotNumber -&gt; Bool
+(SnapshotNumber -&gt; SnapshotNumber -&gt; Bool)
+-&gt; (SnapshotNumber -&gt; SnapshotNumber -&gt; Bool) -&gt; Eq SnapshotNumber
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: SnapshotNumber -&gt; SnapshotNumber -&gt; Bool
+== :: SnapshotNumber -&gt; SnapshotNumber -&gt; Bool
+$c/= :: SnapshotNumber -&gt; SnapshotNumber -&gt; Bool
+/= :: SnapshotNumber -&gt; SnapshotNumber -&gt; Bool
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/ghc-prim-0.10.0/src/GHC.Classes.html#Eq"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></a></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680288003"><span id="local-6989586621680288007"><span id="local-6989586621680288010"><span id="local-6989586621680288014"><span id="local-6989586621680288017"><span id="local-6989586621680288020"><span id="local-6989586621680288023"><span class="annot"><span class="annottext">Eq SnapshotNumber
+Eq SnapshotNumber =&gt;
+(SnapshotNumber -&gt; SnapshotNumber -&gt; Ordering)
+-&gt; (SnapshotNumber -&gt; SnapshotNumber -&gt; Bool)
+-&gt; (SnapshotNumber -&gt; SnapshotNumber -&gt; Bool)
+-&gt; (SnapshotNumber -&gt; SnapshotNumber -&gt; Bool)
+-&gt; (SnapshotNumber -&gt; SnapshotNumber -&gt; Bool)
+-&gt; (SnapshotNumber -&gt; SnapshotNumber -&gt; SnapshotNumber)
+-&gt; (SnapshotNumber -&gt; SnapshotNumber -&gt; SnapshotNumber)
+-&gt; Ord SnapshotNumber
+SnapshotNumber -&gt; SnapshotNumber -&gt; Bool
+SnapshotNumber -&gt; SnapshotNumber -&gt; Ordering
+SnapshotNumber -&gt; SnapshotNumber -&gt; SnapshotNumber
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: SnapshotNumber -&gt; SnapshotNumber -&gt; Ordering
+compare :: SnapshotNumber -&gt; SnapshotNumber -&gt; Ordering
+$c&lt; :: SnapshotNumber -&gt; SnapshotNumber -&gt; Bool
+&lt; :: SnapshotNumber -&gt; SnapshotNumber -&gt; Bool
+$c&lt;= :: SnapshotNumber -&gt; SnapshotNumber -&gt; Bool
+&lt;= :: SnapshotNumber -&gt; SnapshotNumber -&gt; Bool
+$c&gt; :: SnapshotNumber -&gt; SnapshotNumber -&gt; Bool
+&gt; :: SnapshotNumber -&gt; SnapshotNumber -&gt; Bool
+$c&gt;= :: SnapshotNumber -&gt; SnapshotNumber -&gt; Bool
+&gt;= :: SnapshotNumber -&gt; SnapshotNumber -&gt; Bool
+$cmax :: SnapshotNumber -&gt; SnapshotNumber -&gt; SnapshotNumber
+max :: SnapshotNumber -&gt; SnapshotNumber -&gt; SnapshotNumber
+$cmin :: SnapshotNumber -&gt; SnapshotNumber -&gt; SnapshotNumber
+min :: SnapshotNumber -&gt; SnapshotNumber -&gt; SnapshotNumber
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/ghc-prim-0.10.0/src/GHC.Classes.html#Ord"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></a></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680288027"><span id="local-6989586621680288029"><span class="annot"><span class="annottext">(forall x. SnapshotNumber -&gt; Rep SnapshotNumber x)
+-&gt; (forall x. Rep SnapshotNumber x -&gt; SnapshotNumber)
+-&gt; Generic SnapshotNumber
+forall x. Rep SnapshotNumber x -&gt; SnapshotNumber
+forall x. SnapshotNumber -&gt; Rep SnapshotNumber x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. SnapshotNumber -&gt; Rep SnapshotNumber x
+from :: forall x. SnapshotNumber -&gt; Rep SnapshotNumber x
+$cto :: forall x. Rep SnapshotNumber x -&gt; SnapshotNumber
+to :: forall x. Rep SnapshotNumber x -&gt; SnapshotNumber
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Generics.html#Generic"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></a></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621680288033"><span id="local-6989586621680288038"><span id="local-6989586621680288042"><span class="annot"><span class="annottext">Int -&gt; SnapshotNumber -&gt; ShowS
+[SnapshotNumber] -&gt; ShowS
+SnapshotNumber -&gt; String
+(Int -&gt; SnapshotNumber -&gt; ShowS)
+-&gt; (SnapshotNumber -&gt; String)
+-&gt; ([SnapshotNumber] -&gt; ShowS)
+-&gt; Show SnapshotNumber
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; SnapshotNumber -&gt; ShowS
+showsPrec :: Int -&gt; SnapshotNumber -&gt; ShowS
+$cshow :: SnapshotNumber -&gt; String
+show :: SnapshotNumber -&gt; String
+$cshowList :: [SnapshotNumber] -&gt; ShowS
+showList :: [SnapshotNumber] -&gt; ShowS
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Show.html#Show"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></a></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680288048"><span id="local-6989586621680288053"><span id="local-6989586621680288057"><span id="local-6989586621680288061"><span id="local-6989586621680288065"><span class="annot"><span class="annottext">[SnapshotNumber] -&gt; Value
+[SnapshotNumber] -&gt; Encoding
+SnapshotNumber -&gt; Bool
+SnapshotNumber -&gt; Value
+SnapshotNumber -&gt; Encoding
+(SnapshotNumber -&gt; Value)
+-&gt; (SnapshotNumber -&gt; Encoding)
+-&gt; ([SnapshotNumber] -&gt; Value)
+-&gt; ([SnapshotNumber] -&gt; Encoding)
+-&gt; (SnapshotNumber -&gt; Bool)
+-&gt; ToJSON SnapshotNumber
+forall a.
+(a -&gt; Value)
+-&gt; (a -&gt; Encoding)
+-&gt; ([a] -&gt; Value)
+-&gt; ([a] -&gt; Encoding)
+-&gt; (a -&gt; Bool)
+-&gt; ToJSON a
+$ctoJSON :: SnapshotNumber -&gt; Value
+toJSON :: SnapshotNumber -&gt; Value
+$ctoEncoding :: SnapshotNumber -&gt; Encoding
+toEncoding :: SnapshotNumber -&gt; Encoding
+$ctoJSONList :: [SnapshotNumber] -&gt; Value
+toJSONList :: [SnapshotNumber] -&gt; Value
+$ctoEncodingList :: [SnapshotNumber] -&gt; Encoding
+toEncodingList :: [SnapshotNumber] -&gt; Encoding
+$comitField :: SnapshotNumber -&gt; Bool
+omitField :: SnapshotNumber -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">ToJSON</span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680288071"><span id="local-6989586621680288076"><span id="local-6989586621680288080"><span class="annot"><span class="annottext">Maybe SnapshotNumber
+Value -&gt; Parser [SnapshotNumber]
+Value -&gt; Parser SnapshotNumber
+(Value -&gt; Parser SnapshotNumber)
+-&gt; (Value -&gt; Parser [SnapshotNumber])
+-&gt; Maybe SnapshotNumber
+-&gt; FromJSON SnapshotNumber
+forall a.
+(Value -&gt; Parser a)
+-&gt; (Value -&gt; Parser [a]) -&gt; Maybe a -&gt; FromJSON a
+$cparseJSON :: Value -&gt; Parser SnapshotNumber
+parseJSON :: Value -&gt; Parser SnapshotNumber
+$cparseJSONList :: Value -&gt; Parser [SnapshotNumber]
+parseJSONList :: Value -&gt; Parser [SnapshotNumber]
+$comittedField :: Maybe SnapshotNumber
+omittedField :: Maybe SnapshotNumber
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">FromJSON</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680288088"><span id="local-6989586621680288093"><span id="local-6989586621680288097"><span class="annot"><span class="annottext">Typeable SnapshotNumber
+Typeable SnapshotNumber =&gt;
+(SnapshotNumber -&gt; Encoding)
+-&gt; ((forall t. ToCBOR t =&gt; Proxy t -&gt; Size)
+    -&gt; Proxy SnapshotNumber -&gt; Size)
+-&gt; ((forall t. ToCBOR t =&gt; Proxy t -&gt; Size)
+    -&gt; Proxy [SnapshotNumber] -&gt; Size)
+-&gt; ToCBOR SnapshotNumber
+SnapshotNumber -&gt; Encoding
+(forall t. ToCBOR t =&gt; Proxy t -&gt; Size)
+-&gt; Proxy [SnapshotNumber] -&gt; Size
+(forall t. ToCBOR t =&gt; Proxy t -&gt; Size)
+-&gt; Proxy SnapshotNumber -&gt; Size
+forall a.
+Typeable a =&gt;
+(a -&gt; Encoding)
+-&gt; ((forall t. ToCBOR t =&gt; Proxy t -&gt; Size) -&gt; Proxy a -&gt; Size)
+-&gt; ((forall t. ToCBOR t =&gt; Proxy t -&gt; Size) -&gt; Proxy [a] -&gt; Size)
+-&gt; ToCBOR a
+$ctoCBOR :: SnapshotNumber -&gt; Encoding
+toCBOR :: SnapshotNumber -&gt; Encoding
+$cencodedSizeExpr :: (forall t. ToCBOR t =&gt; Proxy t -&gt; Size)
+-&gt; Proxy SnapshotNumber -&gt; Size
+encodedSizeExpr :: (forall t. ToCBOR t =&gt; Proxy t -&gt; Size)
+-&gt; Proxy SnapshotNumber -&gt; Size
+$cencodedListSizeExpr :: (forall t. ToCBOR t =&gt; Proxy t -&gt; Size)
+-&gt; Proxy [SnapshotNumber] -&gt; Size
+encodedListSizeExpr :: (forall t. ToCBOR t =&gt; Proxy t -&gt; Size)
+-&gt; Proxy [SnapshotNumber] -&gt; Size
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">ToCBOR</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680288105"><span id="local-6989586621680288110"><span class="annot"><span class="annottext">Typeable SnapshotNumber
+Typeable SnapshotNumber =&gt;
+(forall s. Decoder s SnapshotNumber)
+-&gt; (Proxy SnapshotNumber -&gt; Text) -&gt; FromCBOR SnapshotNumber
+Proxy SnapshotNumber -&gt; Text
+forall s. Decoder s SnapshotNumber
+forall a.
+Typeable a =&gt;
+(forall s. Decoder s a) -&gt; (Proxy a -&gt; Text) -&gt; FromCBOR a
+$cfromCBOR :: forall s. Decoder s SnapshotNumber
+fromCBOR :: forall s. Decoder s SnapshotNumber
+$clabel :: Proxy SnapshotNumber -&gt; Text
+label :: Proxy SnapshotNumber -&gt; Text
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">FromCBOR</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680288121"><span class="annot"><span class="annottext">Num SnapshotNumber
+Ord SnapshotNumber
+(Num SnapshotNumber, Ord SnapshotNumber) =&gt;
+(SnapshotNumber -&gt; Rational) -&gt; Real SnapshotNumber
+SnapshotNumber -&gt; Rational
+forall a. (Num a, Ord a) =&gt; (a -&gt; Rational) -&gt; Real a
+$ctoRational :: SnapshotNumber -&gt; Rational
+toRational :: SnapshotNumber -&gt; Rational
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Real.html#Real"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Real</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680288128"><span id="local-6989586621680288133"><span id="local-6989586621680288137"><span id="local-6989586621680288141"><span id="local-6989586621680288145"><span id="local-6989586621680288149"><span id="local-6989586621680288153"><span class="annot"><span class="annottext">Integer -&gt; SnapshotNumber
+SnapshotNumber -&gt; SnapshotNumber
+SnapshotNumber -&gt; SnapshotNumber -&gt; SnapshotNumber
+(SnapshotNumber -&gt; SnapshotNumber -&gt; SnapshotNumber)
+-&gt; (SnapshotNumber -&gt; SnapshotNumber -&gt; SnapshotNumber)
+-&gt; (SnapshotNumber -&gt; SnapshotNumber -&gt; SnapshotNumber)
+-&gt; (SnapshotNumber -&gt; SnapshotNumber)
+-&gt; (SnapshotNumber -&gt; SnapshotNumber)
+-&gt; (SnapshotNumber -&gt; SnapshotNumber)
+-&gt; (Integer -&gt; SnapshotNumber)
+-&gt; Num SnapshotNumber
+forall a.
+(a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Integer -&gt; a)
+-&gt; Num a
+$c+ :: SnapshotNumber -&gt; SnapshotNumber -&gt; SnapshotNumber
++ :: SnapshotNumber -&gt; SnapshotNumber -&gt; SnapshotNumber
+$c- :: SnapshotNumber -&gt; SnapshotNumber -&gt; SnapshotNumber
+- :: SnapshotNumber -&gt; SnapshotNumber -&gt; SnapshotNumber
+$c* :: SnapshotNumber -&gt; SnapshotNumber -&gt; SnapshotNumber
+* :: SnapshotNumber -&gt; SnapshotNumber -&gt; SnapshotNumber
+$cnegate :: SnapshotNumber -&gt; SnapshotNumber
+negate :: SnapshotNumber -&gt; SnapshotNumber
+$cabs :: SnapshotNumber -&gt; SnapshotNumber
+abs :: SnapshotNumber -&gt; SnapshotNumber
+$csignum :: SnapshotNumber -&gt; SnapshotNumber
+signum :: SnapshotNumber -&gt; SnapshotNumber
+$cfromInteger :: Integer -&gt; SnapshotNumber
+fromInteger :: Integer -&gt; SnapshotNumber
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Num.html#Num"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Num</span></a></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680288158"><span id="local-6989586621680288163"><span id="local-6989586621680288167"><span id="local-6989586621680288171"><span id="local-6989586621680288175"><span id="local-6989586621680288179"><span id="local-6989586621680288183"><span id="local-6989586621680288187"><span class="annot"><span class="annottext">Int -&gt; SnapshotNumber
+SnapshotNumber -&gt; Int
+SnapshotNumber -&gt; [SnapshotNumber]
+SnapshotNumber -&gt; SnapshotNumber
+SnapshotNumber -&gt; SnapshotNumber -&gt; [SnapshotNumber]
+SnapshotNumber
+-&gt; SnapshotNumber -&gt; SnapshotNumber -&gt; [SnapshotNumber]
+(SnapshotNumber -&gt; SnapshotNumber)
+-&gt; (SnapshotNumber -&gt; SnapshotNumber)
+-&gt; (Int -&gt; SnapshotNumber)
+-&gt; (SnapshotNumber -&gt; Int)
+-&gt; (SnapshotNumber -&gt; [SnapshotNumber])
+-&gt; (SnapshotNumber -&gt; SnapshotNumber -&gt; [SnapshotNumber])
+-&gt; (SnapshotNumber -&gt; SnapshotNumber -&gt; [SnapshotNumber])
+-&gt; (SnapshotNumber
+    -&gt; SnapshotNumber -&gt; SnapshotNumber -&gt; [SnapshotNumber])
+-&gt; Enum SnapshotNumber
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+$csucc :: SnapshotNumber -&gt; SnapshotNumber
+succ :: SnapshotNumber -&gt; SnapshotNumber
+$cpred :: SnapshotNumber -&gt; SnapshotNumber
+pred :: SnapshotNumber -&gt; SnapshotNumber
+$ctoEnum :: Int -&gt; SnapshotNumber
+toEnum :: Int -&gt; SnapshotNumber
+$cfromEnum :: SnapshotNumber -&gt; Int
+fromEnum :: SnapshotNumber -&gt; Int
+$cenumFrom :: SnapshotNumber -&gt; [SnapshotNumber]
+enumFrom :: SnapshotNumber -&gt; [SnapshotNumber]
+$cenumFromThen :: SnapshotNumber -&gt; SnapshotNumber -&gt; [SnapshotNumber]
+enumFromThen :: SnapshotNumber -&gt; SnapshotNumber -&gt; [SnapshotNumber]
+$cenumFromTo :: SnapshotNumber -&gt; SnapshotNumber -&gt; [SnapshotNumber]
+enumFromTo :: SnapshotNumber -&gt; SnapshotNumber -&gt; [SnapshotNumber]
+$cenumFromThenTo :: SnapshotNumber
+-&gt; SnapshotNumber -&gt; SnapshotNumber -&gt; [SnapshotNumber]
+enumFromThenTo :: SnapshotNumber
+-&gt; SnapshotNumber -&gt; SnapshotNumber -&gt; [SnapshotNumber]
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Enum.html#Enum"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></a></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680288197"><span id="local-6989586621680288202"><span id="local-6989586621680288206"><span id="local-6989586621680288210"><span id="local-6989586621680288214"><span id="local-6989586621680288218"><span id="local-6989586621680288222"><span class="annot"><span class="annottext">Enum SnapshotNumber
+Real SnapshotNumber
+(Real SnapshotNumber, Enum SnapshotNumber) =&gt;
+(SnapshotNumber -&gt; SnapshotNumber -&gt; SnapshotNumber)
+-&gt; (SnapshotNumber -&gt; SnapshotNumber -&gt; SnapshotNumber)
+-&gt; (SnapshotNumber -&gt; SnapshotNumber -&gt; SnapshotNumber)
+-&gt; (SnapshotNumber -&gt; SnapshotNumber -&gt; SnapshotNumber)
+-&gt; (SnapshotNumber
+    -&gt; SnapshotNumber -&gt; (SnapshotNumber, SnapshotNumber))
+-&gt; (SnapshotNumber
+    -&gt; SnapshotNumber -&gt; (SnapshotNumber, SnapshotNumber))
+-&gt; (SnapshotNumber -&gt; Integer)
+-&gt; Integral SnapshotNumber
+SnapshotNumber -&gt; Integer
+SnapshotNumber
+-&gt; SnapshotNumber -&gt; (SnapshotNumber, SnapshotNumber)
+SnapshotNumber -&gt; SnapshotNumber -&gt; SnapshotNumber
+forall a.
+(Real a, Enum a) =&gt;
+(a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; (a, a))
+-&gt; (a -&gt; a -&gt; (a, a))
+-&gt; (a -&gt; Integer)
+-&gt; Integral a
+$cquot :: SnapshotNumber -&gt; SnapshotNumber -&gt; SnapshotNumber
+quot :: SnapshotNumber -&gt; SnapshotNumber -&gt; SnapshotNumber
+$crem :: SnapshotNumber -&gt; SnapshotNumber -&gt; SnapshotNumber
+rem :: SnapshotNumber -&gt; SnapshotNumber -&gt; SnapshotNumber
+$cdiv :: SnapshotNumber -&gt; SnapshotNumber -&gt; SnapshotNumber
+div :: SnapshotNumber -&gt; SnapshotNumber -&gt; SnapshotNumber
+$cmod :: SnapshotNumber -&gt; SnapshotNumber -&gt; SnapshotNumber
+mod :: SnapshotNumber -&gt; SnapshotNumber -&gt; SnapshotNumber
+$cquotRem :: SnapshotNumber
+-&gt; SnapshotNumber -&gt; (SnapshotNumber, SnapshotNumber)
+quotRem :: SnapshotNumber
+-&gt; SnapshotNumber -&gt; (SnapshotNumber, SnapshotNumber)
+$cdivMod :: SnapshotNumber
+-&gt; SnapshotNumber -&gt; (SnapshotNumber, SnapshotNumber)
+divMod :: SnapshotNumber
+-&gt; SnapshotNumber -&gt; (SnapshotNumber, SnapshotNumber)
+$ctoInteger :: SnapshotNumber -&gt; Integer
+toInteger :: SnapshotNumber -&gt; Integer
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Real.html#Integral"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Integral</span></a></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621680288229"><span class="annot"><span class="hs-identifier hs-type">Arbitrary</span></span><span> </span><span class="annot"><a href="Hydra.Snapshot.html#SnapshotNumber"><span class="hs-identifier hs-type">SnapshotNumber</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-28"></span><span>  </span><span id="local-6989586621680288237"><span class="annot"><span class="annottext">arbitrary :: Gen SnapshotNumber
+</span><a href="#local-6989586621680288237"><span class="hs-identifier hs-var hs-var hs-var hs-var">arbitrary</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Natural -&gt; SnapshotNumber
+</span><a href="Hydra.Snapshot.html#UnsafeSnapshotNumber"><span class="hs-identifier hs-var">UnsafeSnapshotNumber</span></a></span><span> </span><span class="annot"><span class="annottext">(Natural -&gt; SnapshotNumber) -&gt; Gen Natural -&gt; Gen SnapshotNumber
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/Data.Functor.html#%3C%24%3E"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Gen Natural
+forall a. Arbitrary a =&gt; Gen a
+</span><span class="hs-identifier hs-var">arbitrary</span></span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">data</span><span> </span><span id="Snapshot"><span class="annot"><a href="Hydra.Snapshot.html#Snapshot"><span class="hs-identifier hs-var">Snapshot</span></a></span></span><span> </span><span id="local-6989586621680287592"><span class="annot"><a href="#local-6989586621680287592"><span class="hs-identifier hs-type">tx</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Snapshot"><span class="annot"><a href="Hydra.Snapshot.html#Snapshot"><span class="hs-identifier hs-var">Snapshot</span></a></span></span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="%24sel%3AheadId%3ASnapshot"><span class="annot"><span class="annottext">forall tx. Snapshot tx -&gt; HeadId
+</span><a href="Hydra.Snapshot.html#%24sel%3AheadId%3ASnapshot"><span class="hs-identifier hs-var hs-var">headId</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Hydra.HeadId.html#HeadId"><span class="hs-identifier hs-type">HeadId</span></a></span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Anumber%3ASnapshot"><span class="annot"><span class="annottext">forall tx. Snapshot tx -&gt; SnapshotNumber
+</span><a href="Hydra.Snapshot.html#%24sel%3Anumber%3ASnapshot"><span class="hs-identifier hs-var hs-var">number</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Hydra.Snapshot.html#SnapshotNumber"><span class="hs-identifier hs-type">SnapshotNumber</span></a></span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Autxo%3ASnapshot"><span class="annot"><span class="annottext">forall tx. Snapshot tx -&gt; UTxOType tx
+</span><a href="Hydra.Snapshot.html#%24sel%3Autxo%3ASnapshot"><span class="hs-identifier hs-var hs-var">utxo</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Hydra.Ledger.html#UTxOType"><span class="hs-identifier hs-type">UTxOType</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680287592"><span class="hs-identifier hs-type">tx</span></a></span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Aconfirmed%3ASnapshot"><span class="annot"><span class="annottext">forall tx. Snapshot tx -&gt; [TxIdType tx]
+</span><a href="Hydra.Snapshot.html#%24sel%3Aconfirmed%3ASnapshot"><span class="hs-identifier hs-var hs-var">confirmed</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Hydra.Ledger.html#TxIdType"><span class="hs-identifier hs-type">TxIdType</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680287592"><span class="hs-identifier hs-type">tx</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-35"></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ The set of transactions that lead to 'utxo'</span></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621680288246"><span id="local-6989586621680288248"><span class="annot"><span class="annottext">(forall x. Snapshot tx -&gt; Rep (Snapshot tx) x)
+-&gt; (forall x. Rep (Snapshot tx) x -&gt; Snapshot tx)
+-&gt; Generic (Snapshot tx)
+forall x. Rep (Snapshot tx) x -&gt; Snapshot tx
+forall x. Snapshot tx -&gt; Rep (Snapshot tx) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall tx x. Rep (Snapshot tx) x -&gt; Snapshot tx
+forall tx x. Snapshot tx -&gt; Rep (Snapshot tx) x
+$cfrom :: forall tx x. Snapshot tx -&gt; Rep (Snapshot tx) x
+from :: forall x. Snapshot tx -&gt; Rep (Snapshot tx) x
+$cto :: forall tx x. Rep (Snapshot tx) x -&gt; Snapshot tx
+to :: forall x. Rep (Snapshot tx) x -&gt; Snapshot tx
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Generics.html#Generic"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></a></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span id="local-6989586621680288252"><span id="local-6989586621680288262"><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621680287607"><span class="annot"><a href="#local-6989586621680287607"><span class="hs-keyword hs-type">stock</span></a></span></span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Hydra.Ledger.html#IsTx"><span class="hs-identifier hs-type">IsTx</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680287607"><span class="hs-identifier hs-type">tx</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/ghc-prim-0.10.0/src/GHC.Classes.html#Eq"><span class="hs-identifier hs-type">Eq</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.Snapshot.html#Snapshot"><span class="hs-identifier hs-type">Snapshot</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680287607"><span class="hs-identifier hs-type">tx</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-40"></span><span id="local-6989586621680288269"><span id="local-6989586621680288281"><span id="local-6989586621680288285"><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621680287610"><span class="annot"><a href="#local-6989586621680287610"><span class="hs-keyword hs-type">stock</span></a></span></span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Hydra.Ledger.html#IsTx"><span class="hs-identifier hs-type">IsTx</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680287610"><span class="hs-identifier hs-type">tx</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Show.html#Show"><span class="hs-identifier hs-type">Show</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.Snapshot.html#Snapshot"><span class="hs-identifier hs-type">Snapshot</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680287610"><span class="hs-identifier hs-type">tx</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621680287612"><span id="local-6989586621680288292"><span id="local-6989586621680288296"><span id="local-6989586621680288299"><span id="local-6989586621680288302"><span class="annot"><a href="Hydra.Ledger.html#IsTx"><span class="hs-identifier hs-type">IsTx</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680287612"><span class="hs-identifier hs-type">tx</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.Snapshot.html#Snapshot"><span class="hs-identifier hs-type">Snapshot</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680287612"><span class="hs-identifier hs-type">tx</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-43"></span><span>  </span><span id="local-6989586621680288326"><span class="annot"><span class="annottext">toJSON :: Snapshot tx -&gt; Value
+</span><a href="#local-6989586621680288326"><span class="hs-identifier hs-var hs-var hs-var hs-var">toJSON</span></a></span></span><span> </span><span class="annot"><a href="Hydra.Snapshot.html#Snapshot"><span class="hs-identifier hs-type">Snapshot</span></a></span><span class="hs-special">{</span><span id="local-6989586621680288328"><span class="annot"><span class="annottext">HeadId
+$sel:headId:Snapshot :: forall tx. Snapshot tx -&gt; HeadId
+headId :: HeadId
+</span><a href="Hydra.Snapshot.html#%24sel%3AheadId%3ASnapshot"><span class="hs-identifier hs-var hs-var">headId</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680288329"><span class="annot"><span class="annottext">SnapshotNumber
+$sel:number:Snapshot :: forall tx. Snapshot tx -&gt; SnapshotNumber
+number :: SnapshotNumber
+</span><a href="Hydra.Snapshot.html#%24sel%3Anumber%3ASnapshot"><span class="hs-identifier hs-var hs-var">number</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680288330"><span class="annot"><span class="annottext">UTxOType tx
+$sel:utxo:Snapshot :: forall tx. Snapshot tx -&gt; UTxOType tx
+utxo :: UTxOType tx
+</span><a href="Hydra.Snapshot.html#%24sel%3Autxo%3ASnapshot"><span class="hs-identifier hs-var hs-var">utxo</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680288331"><span class="annot"><span class="annottext">[TxIdType tx]
+$sel:confirmed:Snapshot :: forall tx. Snapshot tx -&gt; [TxIdType tx]
+confirmed :: [TxIdType tx]
+</span><a href="Hydra.Snapshot.html#%24sel%3Aconfirmed%3ASnapshot"><span class="hs-identifier hs-var hs-var">confirmed</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-44"></span><span>    </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">object</span></span><span>
+</span><span id="line-45"></span><span>      </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;headId&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; HeadId -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">HeadId
+</span><a href="#local-6989586621680288328"><span class="hs-identifier hs-var">headId</span></a></span><span>
+</span><span id="line-46"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;snapshotNumber&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; SnapshotNumber -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">SnapshotNumber
+</span><a href="#local-6989586621680288329"><span class="hs-identifier hs-var">number</span></a></span><span>
+</span><span id="line-47"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;utxo&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; UTxOType tx -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">UTxOType tx
+</span><a href="#local-6989586621680288330"><span class="hs-identifier hs-var">utxo</span></a></span><span>
+</span><span id="line-48"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;confirmedTransactions&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; [TxIdType tx] -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">[TxIdType tx]
+</span><a href="#local-6989586621680288331"><span class="hs-identifier hs-var">confirmed</span></a></span><span>
+</span><span id="line-49"></span><span>      </span><span class="hs-special">]</span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621680287623"><span id="local-6989586621680288335"><span id="local-6989586621680288339"><span class="annot"><a href="Hydra.Ledger.html#IsTx"><span class="hs-identifier hs-type">IsTx</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680287623"><span class="hs-identifier hs-type">tx</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.Snapshot.html#Snapshot"><span class="hs-identifier hs-type">Snapshot</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680287623"><span class="hs-identifier hs-type">tx</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-52"></span><span>  </span><span id="local-6989586621680288361"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser (Snapshot tx)
+</span><a href="#local-6989586621680288361"><span class="hs-identifier hs-var hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser (Snapshot tx))
+-&gt; Value
+-&gt; Parser (Snapshot tx)
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Snapshot&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser (Snapshot tx)) -&gt; Value -&gt; Parser (Snapshot tx))
+-&gt; (Object -&gt; Parser (Snapshot tx))
+-&gt; Value
+-&gt; Parser (Snapshot tx)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621680288363"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621680288363"><span class="hs-identifier hs-var">obj</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><span class="annottext">HeadId
+-&gt; SnapshotNumber -&gt; UTxOType tx -&gt; [TxIdType tx] -&gt; Snapshot tx
+forall tx.
+HeadId
+-&gt; SnapshotNumber -&gt; UTxOType tx -&gt; [TxIdType tx] -&gt; Snapshot tx
+</span><a href="Hydra.Snapshot.html#Snapshot"><span class="hs-identifier hs-var">Snapshot</span></a></span><span>
+</span><span id="line-54"></span><span>      </span><span class="annot"><span class="annottext">(HeadId
+ -&gt; SnapshotNumber -&gt; UTxOType tx -&gt; [TxIdType tx] -&gt; Snapshot tx)
+-&gt; Parser HeadId
+-&gt; Parser
+     (SnapshotNumber -&gt; UTxOType tx -&gt; [TxIdType tx] -&gt; Snapshot tx)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/Data.Functor.html#%3C%24%3E"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621680288363"><span class="hs-identifier hs-var">obj</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser HeadId
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;headId&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span>      </span><span class="annot"><span class="annottext">Parser
+  (SnapshotNumber -&gt; UTxOType tx -&gt; [TxIdType tx] -&gt; Snapshot tx)
+-&gt; Parser SnapshotNumber
+-&gt; Parser (UTxOType tx -&gt; [TxIdType tx] -&gt; Snapshot tx)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%3C%2A%3E"><span class="hs-operator hs-var">&lt;*&gt;</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621680288363"><span class="hs-identifier hs-var">obj</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser SnapshotNumber
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;snapshotNumber&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span>      </span><span class="annot"><span class="annottext">Parser (UTxOType tx -&gt; [TxIdType tx] -&gt; Snapshot tx)
+-&gt; Parser (UTxOType tx) -&gt; Parser ([TxIdType tx] -&gt; Snapshot tx)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%3C%2A%3E"><span class="hs-operator hs-var">&lt;*&gt;</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621680288363"><span class="hs-identifier hs-var">obj</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (UTxOType tx)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;utxo&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>      </span><span class="annot"><span class="annottext">Parser ([TxIdType tx] -&gt; Snapshot tx)
+-&gt; Parser [TxIdType tx] -&gt; Parser (Snapshot tx)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%3C%2A%3E"><span class="hs-operator hs-var">&lt;*&gt;</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621680288363"><span class="hs-identifier hs-var">obj</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser [TxIdType tx]
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;confirmedTransactions&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621680287635"><span class="annot"><a href="Hydra.Ledger.html#IsTx"><span class="hs-identifier hs-type">IsTx</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680287635"><span class="hs-identifier hs-type">tx</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Arbitrary</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.Snapshot.html#Snapshot"><span class="hs-identifier hs-type">Snapshot</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680287635"><span class="hs-identifier hs-type">tx</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-60"></span><span>  </span><span id="local-6989586621680288428"><span class="annot"><span class="annottext">arbitrary :: Gen (Snapshot tx)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">arbitrary</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Gen (Snapshot tx)
+forall a.
+(Generic a, GA UnsizedOpts (Rep a),
+ UniformWeight (Weights_ (Rep a))) =&gt;
+Gen a
+</span><span class="hs-identifier hs-var">genericArbitrary</span></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span>  </span><span class="hs-comment">-- NOTE: See note on 'Arbitrary (ClientInput tx)'</span><span>
+</span><span id="line-63"></span><span>  </span><span id="local-6989586621680288432"><span class="annot"><span class="annottext">shrink :: Snapshot tx -&gt; [Snapshot tx]
+</span><a href="#local-6989586621680288432"><span class="hs-identifier hs-var hs-var hs-var hs-var">shrink</span></a></span></span><span> </span><span class="annot"><a href="Hydra.Snapshot.html#Snapshot"><span class="hs-identifier hs-type">Snapshot</span></a></span><span class="hs-special">{</span><span id="local-6989586621680288434"><span class="annot"><span class="annottext">HeadId
+$sel:headId:Snapshot :: forall tx. Snapshot tx -&gt; HeadId
+headId :: HeadId
+</span><a href="Hydra.Snapshot.html#%24sel%3AheadId%3ASnapshot"><span class="hs-identifier hs-var hs-var">headId</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680288435"><span class="annot"><span class="annottext">SnapshotNumber
+$sel:number:Snapshot :: forall tx. Snapshot tx -&gt; SnapshotNumber
+number :: SnapshotNumber
+</span><a href="Hydra.Snapshot.html#%24sel%3Anumber%3ASnapshot"><span class="hs-identifier hs-var hs-var">number</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680288436"><span class="annot"><span class="annottext">UTxOType tx
+$sel:utxo:Snapshot :: forall tx. Snapshot tx -&gt; UTxOType tx
+utxo :: UTxOType tx
+</span><a href="Hydra.Snapshot.html#%24sel%3Autxo%3ASnapshot"><span class="hs-identifier hs-var hs-var">utxo</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680288437"><span class="annot"><span class="annottext">[TxIdType tx]
+$sel:confirmed:Snapshot :: forall tx. Snapshot tx -&gt; [TxIdType tx]
+confirmed :: [TxIdType tx]
+</span><a href="Hydra.Snapshot.html#%24sel%3Aconfirmed%3ASnapshot"><span class="hs-identifier hs-var hs-var">confirmed</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-64"></span><span>    </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">HeadId
+-&gt; SnapshotNumber -&gt; UTxOType tx -&gt; [TxIdType tx] -&gt; Snapshot tx
+forall tx.
+HeadId
+-&gt; SnapshotNumber -&gt; UTxOType tx -&gt; [TxIdType tx] -&gt; Snapshot tx
+</span><a href="Hydra.Snapshot.html#Snapshot"><span class="hs-identifier hs-var">Snapshot</span></a></span><span> </span><span class="annot"><span class="annottext">HeadId
+</span><a href="#local-6989586621680288434"><span class="hs-identifier hs-var">headId</span></a></span><span> </span><span class="annot"><span class="annottext">SnapshotNumber
+</span><a href="#local-6989586621680288435"><span class="hs-identifier hs-var">number</span></a></span><span> </span><span class="annot"><span class="annottext">UTxOType tx
+</span><a href="#local-6989586621680288438"><span class="hs-identifier hs-var">utxo'</span></a></span><span> </span><span class="annot"><span class="annottext">[TxIdType tx]
+</span><a href="#local-6989586621680288439"><span class="hs-identifier hs-var">confirmed'</span></a></span><span>
+</span><span id="line-65"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621680288438"><span class="annot"><span class="annottext">UTxOType tx
+</span><a href="#local-6989586621680288438"><span class="hs-identifier hs-var">utxo'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">UTxOType tx -&gt; [UTxOType tx]
+forall a. Arbitrary a =&gt; a -&gt; [a]
+</span><span class="hs-identifier hs-var">shrink</span></span><span> </span><span class="annot"><span class="annottext">UTxOType tx
+</span><a href="#local-6989586621680288436"><span class="hs-identifier hs-var">utxo</span></a></span><span>
+</span><span id="line-66"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="local-6989586621680288439"><span class="annot"><span class="annottext">[TxIdType tx]
+</span><a href="#local-6989586621680288439"><span class="hs-identifier hs-var">confirmed'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[TxIdType tx] -&gt; [[TxIdType tx]]
+forall a. Arbitrary a =&gt; a -&gt; [a]
+</span><span class="hs-identifier hs-var">shrink</span></span><span> </span><span class="annot"><span class="annottext">[TxIdType tx]
+</span><a href="#local-6989586621680288437"><span class="hs-identifier hs-var">confirmed</span></a></span><span>
+</span><span id="line-67"></span><span>    </span><span class="hs-special">]</span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- | Binary representation of snapshot signatures</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- TODO: document CDDL format, either here or on in 'Hydra.Contract.Head.verifyPartySignature'</span><span>
+</span><span id="line-71"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621680287696"><span class="annot"><a href="#local-6989586621680287696"><span class="hs-identifier hs-type">tx</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="Hydra.Ledger.html#IsTx"><span class="hs-identifier hs-type">IsTx</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680287696"><span class="hs-identifier hs-type">tx</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">SignableRepresentation</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.Snapshot.html#Snapshot"><span class="hs-identifier hs-type">Snapshot</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680287696"><span class="hs-identifier hs-type">tx</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-72"></span><span>  </span><span id="local-6989586621680288465"><span class="annot"><span class="annottext">getSignableRepresentation :: Snapshot tx -&gt; ByteString
+</span><a href="#local-6989586621680288465"><span class="hs-identifier hs-var hs-var hs-var hs-var">getSignableRepresentation</span></a></span></span><span> </span><span class="annot"><a href="Hydra.Snapshot.html#Snapshot"><span class="hs-identifier hs-type">Snapshot</span></a></span><span class="hs-special">{</span><span id="local-6989586621680288467"><span class="annot"><span class="annottext">SnapshotNumber
+$sel:number:Snapshot :: forall tx. Snapshot tx -&gt; SnapshotNumber
+number :: SnapshotNumber
+</span><a href="Hydra.Snapshot.html#%24sel%3Anumber%3ASnapshot"><span class="hs-identifier hs-var hs-var">number</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680288468"><span class="annot"><span class="annottext">HeadId
+$sel:headId:Snapshot :: forall tx. Snapshot tx -&gt; HeadId
+headId :: HeadId
+</span><a href="Hydra.Snapshot.html#%24sel%3AheadId%3ASnapshot"><span class="hs-identifier hs-var hs-var">headId</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680288469"><span class="annot"><span class="annottext">UTxOType tx
+$sel:utxo:Snapshot :: forall tx. Snapshot tx -&gt; UTxOType tx
+utxo :: UTxOType tx
+</span><a href="Hydra.Snapshot.html#%24sel%3Autxo%3ASnapshot"><span class="hs-identifier hs-var hs-var">utxo</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-73"></span><span>    </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/bytestring-0.11.5.3/src/Data.ByteString.Lazy.Internal.html#toStrict"><span class="hs-identifier hs-var">LBS.toStrict</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; ByteString) -&gt; ByteString -&gt; ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span>
+</span><span id="line-74"></span><span>      </span><span class="annot"><span class="annottext">Data -&gt; ByteString
+forall a. Serialise a =&gt; a -&gt; ByteString
+</span><span class="hs-identifier hs-var">serialise</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">BuiltinByteString -&gt; Data
+forall a. ToData a =&gt; a -&gt; Data
+</span><span class="hs-identifier hs-var">toData</span></span><span> </span><span class="annot"><span class="annottext">(BuiltinByteString -&gt; Data) -&gt; BuiltinByteString -&gt; Data
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; BuiltinByteString
+forall a arep. ToBuiltin a arep =&gt; a -&gt; arep
+</span><span class="hs-identifier hs-var">toBuiltin</span></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; BuiltinByteString)
+-&gt; ByteString -&gt; BuiltinByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">HeadId -&gt; ByteString
+forall a. SerialiseAsRawBytes a =&gt; a -&gt; ByteString
+</span><span class="hs-identifier hs-var">serialiseToRawBytes</span></span><span> </span><span class="annot"><span class="annottext">HeadId
+</span><a href="#local-6989586621680288468"><span class="hs-identifier hs-var">headId</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-75"></span><span>        </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; ByteString
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Data -&gt; ByteString
+forall a. Serialise a =&gt; a -&gt; ByteString
+</span><span class="hs-identifier hs-var">serialise</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; Data
+forall a. ToData a =&gt; a -&gt; Data
+</span><span class="hs-identifier hs-var">toData</span></span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; Data) -&gt; Integer -&gt; Data
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer
+forall a arep. ToBuiltin a arep =&gt; a -&gt; arep
+</span><span class="hs-identifier hs-var">toBuiltin</span></span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; Integer) -&gt; Integer -&gt; Integer
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">SnapshotNumber -&gt; Integer
+forall a. Integral a =&gt; a -&gt; Integer
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Real.html#toInteger"><span class="hs-identifier hs-var">toInteger</span></a></span><span> </span><span class="annot"><span class="annottext">SnapshotNumber
+</span><a href="#local-6989586621680288467"><span class="hs-identifier hs-var">number</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- CBOR(I(integer))</span><span>
+</span><span id="line-76"></span><span>        </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; ByteString
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Data -&gt; ByteString
+forall a. Serialise a =&gt; a -&gt; ByteString
+</span><span class="hs-identifier hs-var">serialise</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">BuiltinByteString -&gt; Data
+forall a. ToData a =&gt; a -&gt; Data
+</span><span class="hs-identifier hs-var">toData</span></span><span> </span><span class="annot"><span class="annottext">(BuiltinByteString -&gt; Data) -&gt; BuiltinByteString -&gt; Data
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; BuiltinByteString
+forall a arep. ToBuiltin a arep =&gt; a -&gt; arep
+</span><span class="hs-identifier hs-var">toBuiltin</span></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; BuiltinByteString)
+-&gt; ByteString -&gt; BuiltinByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">forall tx. IsTx tx =&gt; UTxOType tx -&gt; ByteString
+</span><a href="Hydra.Ledger.html#hashUTxO"><span class="hs-identifier hs-var">hashUTxO</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621680287696"><span class="hs-identifier hs-type">tx</span></a></span><span> </span><span class="annot"><span class="annottext">UTxOType tx
+</span><a href="#local-6989586621680288469"><span class="hs-identifier hs-var">utxo</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- CBOR(B(bytestring)</span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621680287711"><span id="local-6989586621680288480"><span id="local-6989586621680288484"><span class="hs-special">(</span><span class="annot"><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/Data.Typeable.Internal.html#Typeable"><span class="hs-identifier hs-type">Typeable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680287711"><span class="hs-identifier hs-type">tx</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ToCBOR</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.Ledger.html#UTxOType"><span class="hs-identifier hs-type">UTxOType</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680287711"><span class="hs-identifier hs-type">tx</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ToCBOR</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.Ledger.html#TxIdType"><span class="hs-identifier hs-type">TxIdType</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680287711"><span class="hs-identifier hs-type">tx</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ToCBOR</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.Snapshot.html#Snapshot"><span class="hs-identifier hs-type">Snapshot</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680287711"><span class="hs-identifier hs-type">tx</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-79"></span><span>  </span><span id="local-6989586621680288496"><span class="annot"><span class="annottext">toCBOR :: Snapshot tx -&gt; Encoding
+</span><a href="#local-6989586621680288496"><span class="hs-identifier hs-var hs-var hs-var hs-var">toCBOR</span></a></span></span><span> </span><span class="annot"><a href="Hydra.Snapshot.html#Snapshot"><span class="hs-identifier hs-type">Snapshot</span></a></span><span class="hs-special">{</span><span id="local-6989586621680288498"><span class="annot"><span class="annottext">HeadId
+$sel:headId:Snapshot :: forall tx. Snapshot tx -&gt; HeadId
+headId :: HeadId
+</span><a href="Hydra.Snapshot.html#%24sel%3AheadId%3ASnapshot"><span class="hs-identifier hs-var hs-var">headId</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680288499"><span class="annot"><span class="annottext">SnapshotNumber
+$sel:number:Snapshot :: forall tx. Snapshot tx -&gt; SnapshotNumber
+number :: SnapshotNumber
+</span><a href="Hydra.Snapshot.html#%24sel%3Anumber%3ASnapshot"><span class="hs-identifier hs-var hs-var">number</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680288500"><span class="annot"><span class="annottext">UTxOType tx
+$sel:utxo:Snapshot :: forall tx. Snapshot tx -&gt; UTxOType tx
+utxo :: UTxOType tx
+</span><a href="Hydra.Snapshot.html#%24sel%3Autxo%3ASnapshot"><span class="hs-identifier hs-var hs-var">utxo</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680288501"><span class="annot"><span class="annottext">[TxIdType tx]
+$sel:confirmed:Snapshot :: forall tx. Snapshot tx -&gt; [TxIdType tx]
+confirmed :: [TxIdType tx]
+</span><a href="Hydra.Snapshot.html#%24sel%3Aconfirmed%3ASnapshot"><span class="hs-identifier hs-var hs-var">confirmed</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-80"></span><span>    </span><span class="annot"><span class="annottext">HeadId -&gt; Encoding
+forall a. ToCBOR a =&gt; a -&gt; Encoding
+</span><span class="hs-identifier hs-var">toCBOR</span></span><span> </span><span class="annot"><span class="annottext">HeadId
+</span><a href="#local-6989586621680288498"><span class="hs-identifier hs-var">headId</span></a></span><span> </span><span class="annot"><span class="annottext">Encoding -&gt; Encoding -&gt; Encoding
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">SnapshotNumber -&gt; Encoding
+forall a. ToCBOR a =&gt; a -&gt; Encoding
+</span><span class="hs-identifier hs-var">toCBOR</span></span><span> </span><span class="annot"><span class="annottext">SnapshotNumber
+</span><a href="#local-6989586621680288499"><span class="hs-identifier hs-var">number</span></a></span><span> </span><span class="annot"><span class="annottext">Encoding -&gt; Encoding -&gt; Encoding
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">UTxOType tx -&gt; Encoding
+forall a. ToCBOR a =&gt; a -&gt; Encoding
+</span><span class="hs-identifier hs-var">toCBOR</span></span><span> </span><span class="annot"><span class="annottext">UTxOType tx
+</span><a href="#local-6989586621680288500"><span class="hs-identifier hs-var">utxo</span></a></span><span> </span><span class="annot"><span class="annottext">Encoding -&gt; Encoding -&gt; Encoding
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">[TxIdType tx] -&gt; Encoding
+forall a. ToCBOR a =&gt; a -&gt; Encoding
+</span><span class="hs-identifier hs-var">toCBOR</span></span><span> </span><span class="annot"><span class="annottext">[TxIdType tx]
+</span><a href="#local-6989586621680288501"><span class="hs-identifier hs-var">confirmed</span></a></span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621680287714"><span id="local-6989586621680288510"><span class="hs-special">(</span><span class="annot"><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/Data.Typeable.Internal.html#Typeable"><span class="hs-identifier hs-type">Typeable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680287714"><span class="hs-identifier hs-type">tx</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FromCBOR</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.Ledger.html#UTxOType"><span class="hs-identifier hs-type">UTxOType</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680287714"><span class="hs-identifier hs-type">tx</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FromCBOR</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.Ledger.html#TxIdType"><span class="hs-identifier hs-type">TxIdType</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680287714"><span class="hs-identifier hs-type">tx</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FromCBOR</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.Snapshot.html#Snapshot"><span class="hs-identifier hs-type">Snapshot</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680287714"><span class="hs-identifier hs-type">tx</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-83"></span><span>  </span><span id="local-6989586621680288525"><span class="annot"><span class="annottext">fromCBOR :: forall s. Decoder s (Snapshot tx)
+</span><a href="#local-6989586621680288525"><span class="hs-identifier hs-var hs-var hs-var hs-var">fromCBOR</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HeadId
+-&gt; SnapshotNumber -&gt; UTxOType tx -&gt; [TxIdType tx] -&gt; Snapshot tx
+forall tx.
+HeadId
+-&gt; SnapshotNumber -&gt; UTxOType tx -&gt; [TxIdType tx] -&gt; Snapshot tx
+</span><a href="Hydra.Snapshot.html#Snapshot"><span class="hs-identifier hs-var">Snapshot</span></a></span><span> </span><span class="annot"><span class="annottext">(HeadId
+ -&gt; SnapshotNumber -&gt; UTxOType tx -&gt; [TxIdType tx] -&gt; Snapshot tx)
+-&gt; Decoder s HeadId
+-&gt; Decoder
+     s (SnapshotNumber -&gt; UTxOType tx -&gt; [TxIdType tx] -&gt; Snapshot tx)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/Data.Functor.html#%3C%24%3E"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Decoder s HeadId
+forall s. Decoder s HeadId
+forall a s. FromCBOR a =&gt; Decoder s a
+</span><span class="hs-identifier hs-var">fromCBOR</span></span><span> </span><span class="annot"><span class="annottext">Decoder
+  s (SnapshotNumber -&gt; UTxOType tx -&gt; [TxIdType tx] -&gt; Snapshot tx)
+-&gt; Decoder s SnapshotNumber
+-&gt; Decoder s (UTxOType tx -&gt; [TxIdType tx] -&gt; Snapshot tx)
+forall a b. Decoder s (a -&gt; b) -&gt; Decoder s a -&gt; Decoder s b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%3C%2A%3E"><span class="hs-operator hs-var">&lt;*&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Decoder s SnapshotNumber
+forall s. Decoder s SnapshotNumber
+forall a s. FromCBOR a =&gt; Decoder s a
+</span><span class="hs-identifier hs-var">fromCBOR</span></span><span> </span><span class="annot"><span class="annottext">Decoder s (UTxOType tx -&gt; [TxIdType tx] -&gt; Snapshot tx)
+-&gt; Decoder s (UTxOType tx)
+-&gt; Decoder s ([TxIdType tx] -&gt; Snapshot tx)
+forall a b. Decoder s (a -&gt; b) -&gt; Decoder s a -&gt; Decoder s b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%3C%2A%3E"><span class="hs-operator hs-var">&lt;*&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Decoder s (UTxOType tx)
+forall s. Decoder s (UTxOType tx)
+forall a s. FromCBOR a =&gt; Decoder s a
+</span><span class="hs-identifier hs-var">fromCBOR</span></span><span> </span><span class="annot"><span class="annottext">Decoder s ([TxIdType tx] -&gt; Snapshot tx)
+-&gt; Decoder s [TxIdType tx] -&gt; Decoder s (Snapshot tx)
+forall a b. Decoder s (a -&gt; b) -&gt; Decoder s a -&gt; Decoder s b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%3C%2A%3E"><span class="hs-operator hs-var">&lt;*&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Decoder s [TxIdType tx]
+forall s. Decoder s [TxIdType tx]
+forall a s. FromCBOR a =&gt; Decoder s a
+</span><span class="hs-identifier hs-var">fromCBOR</span></span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- | A snapshot that can be used to close a head with. Either the initial one,</span><span>
+</span><span id="line-86"></span><span class="hs-comment">-- or when it was signed by all parties, i.e. it is confirmed.</span><span>
+</span><span id="line-87"></span><span class="hs-keyword">data</span><span> </span><span id="ConfirmedSnapshot"><span class="annot"><a href="Hydra.Snapshot.html#ConfirmedSnapshot"><span class="hs-identifier hs-var">ConfirmedSnapshot</span></a></span></span><span> </span><span id="local-6989586621680287719"><span class="annot"><a href="#local-6989586621680287719"><span class="hs-identifier hs-type">tx</span></a></span></span><span>
+</span><span id="line-88"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="InitialSnapshot"><span class="annot"><a href="Hydra.Snapshot.html#InitialSnapshot"><span class="hs-identifier hs-var">InitialSnapshot</span></a></span></span><span>
+</span><span id="line-89"></span><span>      </span><span class="hs-special">{</span><span> </span><span class="hs-comment">-- XXX: 'headId' is actually unused. Only 'getSnapshot' forces this to exist.</span><span>
+</span><span id="line-90"></span><span>        </span><span id="%24sel%3AheadId%3AInitialSnapshot"><span class="annot"><span class="annottext">forall tx. ConfirmedSnapshot tx -&gt; HeadId
+</span><a href="Hydra.Snapshot.html#%24sel%3AheadId%3AInitialSnapshot"><span class="hs-identifier hs-var hs-var">headId</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Hydra.HeadId.html#HeadId"><span class="hs-identifier hs-type">HeadId</span></a></span><span>
+</span><span id="line-91"></span><span>      </span><span class="hs-special">,</span><span> </span><span id="%24sel%3AinitialUTxO%3AInitialSnapshot"><span class="annot"><span class="annottext">forall tx. ConfirmedSnapshot tx -&gt; UTxOType tx
+</span><a href="Hydra.Snapshot.html#%24sel%3AinitialUTxO%3AInitialSnapshot"><span class="hs-identifier hs-var hs-var">initialUTxO</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Hydra.Ledger.html#UTxOType"><span class="hs-identifier hs-type">UTxOType</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680287719"><span class="hs-identifier hs-type">tx</span></a></span><span>
+</span><span id="line-92"></span><span>      </span><span class="hs-special">}</span><span>
+</span><span id="line-93"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ConfirmedSnapshot"><span class="annot"><a href="Hydra.Snapshot.html#ConfirmedSnapshot"><span class="hs-identifier hs-var">ConfirmedSnapshot</span></a></span></span><span>
+</span><span id="line-94"></span><span>      </span><span class="hs-special">{</span><span> </span><span id="%24sel%3Asnapshot%3AInitialSnapshot"><span class="annot"><span class="annottext">forall tx. ConfirmedSnapshot tx -&gt; Snapshot tx
+</span><a href="Hydra.Snapshot.html#%24sel%3Asnapshot%3AInitialSnapshot"><span class="hs-identifier hs-var hs-var">snapshot</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Hydra.Snapshot.html#Snapshot"><span class="hs-identifier hs-type">Snapshot</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680287719"><span class="hs-identifier hs-type">tx</span></a></span><span>
+</span><span id="line-95"></span><span>      </span><span class="hs-special">,</span><span> </span><span id="%24sel%3Asignatures%3AInitialSnapshot"><span class="annot"><span class="annottext">forall tx. ConfirmedSnapshot tx -&gt; MultiSignature (Snapshot tx)
+</span><a href="Hydra.Snapshot.html#%24sel%3Asignatures%3AInitialSnapshot"><span class="hs-identifier hs-var hs-var">signatures</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Hydra.Crypto.html#MultiSignature"><span class="hs-identifier hs-type">MultiSignature</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.Snapshot.html#Snapshot"><span class="hs-identifier hs-type">Snapshot</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680287719"><span class="hs-identifier hs-type">tx</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-96"></span><span>      </span><span class="hs-special">}</span><span>
+</span><span id="line-97"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621680288534"><span id="local-6989586621680288536"><span class="annot"><span class="annottext">(forall x. ConfirmedSnapshot tx -&gt; Rep (ConfirmedSnapshot tx) x)
+-&gt; (forall x. Rep (ConfirmedSnapshot tx) x -&gt; ConfirmedSnapshot tx)
+-&gt; Generic (ConfirmedSnapshot tx)
+forall x. Rep (ConfirmedSnapshot tx) x -&gt; ConfirmedSnapshot tx
+forall x. ConfirmedSnapshot tx -&gt; Rep (ConfirmedSnapshot tx) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall tx x. Rep (ConfirmedSnapshot tx) x -&gt; ConfirmedSnapshot tx
+forall tx x. ConfirmedSnapshot tx -&gt; Rep (ConfirmedSnapshot tx) x
+$cfrom :: forall tx x. ConfirmedSnapshot tx -&gt; Rep (ConfirmedSnapshot tx) x
+from :: forall x. ConfirmedSnapshot tx -&gt; Rep (ConfirmedSnapshot tx) x
+$cto :: forall tx x. Rep (ConfirmedSnapshot tx) x -&gt; ConfirmedSnapshot tx
+to :: forall x. Rep (ConfirmedSnapshot tx) x -&gt; ConfirmedSnapshot tx
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Generics.html#Generic"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></a></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680288540"><span id="local-6989586621680288548"><span class="annot"><span class="annottext">ConfirmedSnapshot tx -&gt; ConfirmedSnapshot tx -&gt; Bool
+(ConfirmedSnapshot tx -&gt; ConfirmedSnapshot tx -&gt; Bool)
+-&gt; (ConfirmedSnapshot tx -&gt; ConfirmedSnapshot tx -&gt; Bool)
+-&gt; Eq (ConfirmedSnapshot tx)
+forall tx.
+IsTx tx =&gt;
+ConfirmedSnapshot tx -&gt; ConfirmedSnapshot tx -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: forall tx.
+IsTx tx =&gt;
+ConfirmedSnapshot tx -&gt; ConfirmedSnapshot tx -&gt; Bool
+== :: ConfirmedSnapshot tx -&gt; ConfirmedSnapshot tx -&gt; Bool
+$c/= :: forall tx.
+IsTx tx =&gt;
+ConfirmedSnapshot tx -&gt; ConfirmedSnapshot tx -&gt; Bool
+/= :: ConfirmedSnapshot tx -&gt; ConfirmedSnapshot tx -&gt; Bool
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/ghc-prim-0.10.0/src/GHC.Classes.html#Eq"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></a></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680288553"><span id="local-6989586621680288563"><span id="local-6989586621680288567"><span class="annot"><span class="annottext">Int -&gt; ConfirmedSnapshot tx -&gt; ShowS
+[ConfirmedSnapshot tx] -&gt; ShowS
+ConfirmedSnapshot tx -&gt; String
+(Int -&gt; ConfirmedSnapshot tx -&gt; ShowS)
+-&gt; (ConfirmedSnapshot tx -&gt; String)
+-&gt; ([ConfirmedSnapshot tx] -&gt; ShowS)
+-&gt; Show (ConfirmedSnapshot tx)
+forall tx. IsTx tx =&gt; Int -&gt; ConfirmedSnapshot tx -&gt; ShowS
+forall tx. IsTx tx =&gt; [ConfirmedSnapshot tx] -&gt; ShowS
+forall tx. IsTx tx =&gt; ConfirmedSnapshot tx -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: forall tx. IsTx tx =&gt; Int -&gt; ConfirmedSnapshot tx -&gt; ShowS
+showsPrec :: Int -&gt; ConfirmedSnapshot tx -&gt; ShowS
+$cshow :: forall tx. IsTx tx =&gt; ConfirmedSnapshot tx -&gt; String
+show :: ConfirmedSnapshot tx -&gt; String
+$cshowList :: forall tx. IsTx tx =&gt; [ConfirmedSnapshot tx] -&gt; ShowS
+showList :: [ConfirmedSnapshot tx] -&gt; ShowS
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Show.html#Show"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></a></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-98"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621680288571"><span id="local-6989586621680288578"><span id="local-6989586621680288581"><span id="local-6989586621680288584"><span id="local-6989586621680288587"><span class="annot"><span class="annottext">[ConfirmedSnapshot tx] -&gt; Value
+[ConfirmedSnapshot tx] -&gt; Encoding
+ConfirmedSnapshot tx -&gt; Bool
+ConfirmedSnapshot tx -&gt; Value
+ConfirmedSnapshot tx -&gt; Encoding
+(ConfirmedSnapshot tx -&gt; Value)
+-&gt; (ConfirmedSnapshot tx -&gt; Encoding)
+-&gt; ([ConfirmedSnapshot tx] -&gt; Value)
+-&gt; ([ConfirmedSnapshot tx] -&gt; Encoding)
+-&gt; (ConfirmedSnapshot tx -&gt; Bool)
+-&gt; ToJSON (ConfirmedSnapshot tx)
+forall tx. IsTx tx =&gt; [ConfirmedSnapshot tx] -&gt; Value
+forall tx. IsTx tx =&gt; [ConfirmedSnapshot tx] -&gt; Encoding
+forall tx. IsTx tx =&gt; ConfirmedSnapshot tx -&gt; Bool
+forall tx. IsTx tx =&gt; ConfirmedSnapshot tx -&gt; Value
+forall tx. IsTx tx =&gt; ConfirmedSnapshot tx -&gt; Encoding
+forall a.
+(a -&gt; Value)
+-&gt; (a -&gt; Encoding)
+-&gt; ([a] -&gt; Value)
+-&gt; ([a] -&gt; Encoding)
+-&gt; (a -&gt; Bool)
+-&gt; ToJSON a
+$ctoJSON :: forall tx. IsTx tx =&gt; ConfirmedSnapshot tx -&gt; Value
+toJSON :: ConfirmedSnapshot tx -&gt; Value
+$ctoEncoding :: forall tx. IsTx tx =&gt; ConfirmedSnapshot tx -&gt; Encoding
+toEncoding :: ConfirmedSnapshot tx -&gt; Encoding
+$ctoJSONList :: forall tx. IsTx tx =&gt; [ConfirmedSnapshot tx] -&gt; Value
+toJSONList :: [ConfirmedSnapshot tx] -&gt; Value
+$ctoEncodingList :: forall tx. IsTx tx =&gt; [ConfirmedSnapshot tx] -&gt; Encoding
+toEncodingList :: [ConfirmedSnapshot tx] -&gt; Encoding
+$comitField :: forall tx. IsTx tx =&gt; ConfirmedSnapshot tx -&gt; Bool
+omitField :: ConfirmedSnapshot tx -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">ToJSON</span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680288750"><span id="local-6989586621680288757"><span id="local-6989586621680288760"><span class="annot"><span class="annottext">Maybe (ConfirmedSnapshot tx)
+Value -&gt; Parser [ConfirmedSnapshot tx]
+Value -&gt; Parser (ConfirmedSnapshot tx)
+(Value -&gt; Parser (ConfirmedSnapshot tx))
+-&gt; (Value -&gt; Parser [ConfirmedSnapshot tx])
+-&gt; Maybe (ConfirmedSnapshot tx)
+-&gt; FromJSON (ConfirmedSnapshot tx)
+forall tx. IsTx tx =&gt; Maybe (ConfirmedSnapshot tx)
+forall tx. IsTx tx =&gt; Value -&gt; Parser [ConfirmedSnapshot tx]
+forall tx. IsTx tx =&gt; Value -&gt; Parser (ConfirmedSnapshot tx)
+forall a.
+(Value -&gt; Parser a)
+-&gt; (Value -&gt; Parser [a]) -&gt; Maybe a -&gt; FromJSON a
+$cparseJSON :: forall tx. IsTx tx =&gt; Value -&gt; Parser (ConfirmedSnapshot tx)
+parseJSON :: Value -&gt; Parser (ConfirmedSnapshot tx)
+$cparseJSONList :: forall tx. IsTx tx =&gt; Value -&gt; Parser [ConfirmedSnapshot tx]
+parseJSONList :: Value -&gt; Parser [ConfirmedSnapshot tx]
+$comittedField :: forall tx. IsTx tx =&gt; Maybe (ConfirmedSnapshot tx)
+omittedField :: Maybe (ConfirmedSnapshot tx)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">FromJSON</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span class="hs-comment">-- NOTE: While we could use 'snapshot' directly, this is a record-field accessor</span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- which may become partial (and lead to unnoticed runtime errors) if we ever</span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- add a new branch to the sumtype. So, we explicitely define a getter which</span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- will force us into thinking about changing the signature properly if this</span><span>
+</span><span id="line-104"></span><span class="hs-comment">-- happens.</span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span class="annot"><span class="hs-comment">-- | Safely get a 'Snapshot' from a confirmed snapshot.</span></span><span>
+</span><span id="line-107"></span><span id="local-6989586621680288869"><span class="annot"><a href="Hydra.Snapshot.html#getSnapshot"><span class="hs-identifier hs-type">getSnapshot</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Hydra.Snapshot.html#ConfirmedSnapshot"><span class="hs-identifier hs-type">ConfirmedSnapshot</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680288869"><span class="hs-identifier hs-type">tx</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Hydra.Snapshot.html#Snapshot"><span class="hs-identifier hs-type">Snapshot</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680288869"><span class="hs-identifier hs-type">tx</span></a></span></span><span>
+</span><span id="line-108"></span><span id="getSnapshot"><span class="annot"><span class="annottext">getSnapshot :: forall tx. ConfirmedSnapshot tx -&gt; Snapshot tx
+</span><a href="Hydra.Snapshot.html#getSnapshot"><span class="hs-identifier hs-var hs-var">getSnapshot</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-109"></span><span>  </span><span class="annot"><a href="Hydra.Snapshot.html#InitialSnapshot"><span class="hs-identifier hs-type">InitialSnapshot</span></a></span><span class="hs-special">{</span><span id="local-6989586621680288872"><span class="annot"><span class="annottext">HeadId
+$sel:headId:InitialSnapshot :: forall tx. ConfirmedSnapshot tx -&gt; HeadId
+headId :: HeadId
+</span><a href="Hydra.Snapshot.html#%24sel%3AheadId%3AInitialSnapshot"><span class="hs-identifier hs-var hs-var">headId</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680288873"><span class="annot"><span class="annottext">UTxOType tx
+$sel:initialUTxO:InitialSnapshot :: forall tx. ConfirmedSnapshot tx -&gt; UTxOType tx
+initialUTxO :: UTxOType tx
+</span><a href="Hydra.Snapshot.html#%24sel%3AinitialUTxO%3AInitialSnapshot"><span class="hs-identifier hs-var hs-var">initialUTxO</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-110"></span><span>    </span><span class="annot"><a href="Hydra.Snapshot.html#Snapshot"><span class="hs-identifier hs-type">Snapshot</span></a></span><span>
+</span><span id="line-111"></span><span>      </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">HeadId
+$sel:headId:Snapshot :: HeadId
+headId :: HeadId
+</span><a href="Hydra.Snapshot.html#%24sel%3AheadId%3ASnapshot"><span class="hs-identifier hs-var hs-var">headId</span></a></span><span>
+</span><span id="line-112"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:number:Snapshot :: SnapshotNumber
+</span><a href="Hydra.Snapshot.html#%24sel%3Anumber%3ASnapshot"><span class="hs-identifier hs-var">number</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SnapshotNumber
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-113"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:utxo:Snapshot :: UTxOType tx
+</span><a href="Hydra.Snapshot.html#%24sel%3Autxo%3ASnapshot"><span class="hs-identifier hs-var">utxo</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UTxOType tx
+</span><a href="#local-6989586621680288873"><span class="hs-identifier hs-var">initialUTxO</span></a></span><span>
+</span><span id="line-114"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:confirmed:Snapshot :: [TxIdType tx]
+</span><a href="Hydra.Snapshot.html#%24sel%3Aconfirmed%3ASnapshot"><span class="hs-identifier hs-var">confirmed</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-115"></span><span>      </span><span class="hs-special">}</span><span>
+</span><span id="line-116"></span><span>  </span><span class="annot"><a href="Hydra.Snapshot.html#ConfirmedSnapshot"><span class="hs-identifier hs-type">ConfirmedSnapshot</span></a></span><span class="hs-special">{</span><span id="local-6989586621680288874"><span class="annot"><span class="annottext">Snapshot tx
+$sel:snapshot:InitialSnapshot :: forall tx. ConfirmedSnapshot tx -&gt; Snapshot tx
+snapshot :: Snapshot tx
+</span><a href="Hydra.Snapshot.html#%24sel%3Asnapshot%3AInitialSnapshot"><span class="hs-identifier hs-var hs-var">snapshot</span></a></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Snapshot tx
+</span><a href="#local-6989586621680288874"><span class="hs-identifier hs-var">snapshot</span></a></span><span>
+</span><span id="line-117"></span><span>
+</span><span id="line-118"></span><span class="hs-comment">-- | Tell whether a snapshot is the initial snapshot coming from the collect-com</span><span>
+</span><span id="line-119"></span><span class="hs-comment">-- transaction.</span><span>
+</span><span id="line-120"></span><span id="local-6989586621680287945"><span class="annot"><a href="Hydra.Snapshot.html#isInitialSnapshot"><span class="hs-identifier hs-type">isInitialSnapshot</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Hydra.Snapshot.html#ConfirmedSnapshot"><span class="hs-identifier hs-type">ConfirmedSnapshot</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680287945"><span class="hs-identifier hs-type">tx</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/ghc-prim-0.10.0/src/GHC.Types.html#Bool"><span class="hs-identifier hs-type">Bool</span></a></span></span><span>
+</span><span id="line-121"></span><span id="isInitialSnapshot"><span class="annot"><span class="annottext">isInitialSnapshot :: forall tx. ConfirmedSnapshot tx -&gt; Bool
+</span><a href="Hydra.Snapshot.html#isInitialSnapshot"><span class="hs-identifier hs-var hs-var">isInitialSnapshot</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-122"></span><span>  </span><span class="annot"><a href="Hydra.Snapshot.html#InitialSnapshot"><span class="hs-identifier hs-type">InitialSnapshot</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/ghc-prim-0.10.0/src/GHC.Types.html#True"><span class="hs-identifier hs-var">True</span></a></span><span>
+</span><span id="line-123"></span><span>  </span><span class="annot"><a href="Hydra.Snapshot.html#ConfirmedSnapshot"><span class="hs-identifier hs-type">ConfirmedSnapshot</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/ghc-prim-0.10.0/src/GHC.Types.html#False"><span class="hs-identifier hs-var">False</span></a></span><span>
+</span><span id="line-124"></span><span>
+</span><span id="line-125"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621680287948"><span class="annot"><a href="Hydra.Ledger.html#IsTx"><span class="hs-identifier hs-type">IsTx</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680287948"><span class="hs-identifier hs-type">tx</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Arbitrary</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.Snapshot.html#ConfirmedSnapshot"><span class="hs-identifier hs-type">ConfirmedSnapshot</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680287948"><span class="hs-identifier hs-type">tx</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-126"></span><span>  </span><span id="local-6989586621680288892"><span class="annot"><span class="annottext">arbitrary :: Gen (ConfirmedSnapshot tx)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">arbitrary</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-127"></span><span>    </span><span id="local-6989586621680288893"><span class="annot"><span class="annottext">[SigningKey HydraKey]
+</span><a href="#local-6989586621680288893"><span class="hs-identifier hs-var">ks</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Gen [SigningKey HydraKey]
+forall a. Arbitrary a =&gt; Gen a
+</span><span class="hs-identifier hs-var">arbitrary</span></span><span>
+</span><span id="line-128"></span><span>    </span><span id="local-6989586621680288894"><span class="annot"><span class="annottext">UTxOType tx
+</span><a href="#local-6989586621680288894"><span class="hs-identifier hs-var">utxo</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Gen (UTxOType tx)
+forall a. Arbitrary a =&gt; Gen a
+</span><span class="hs-identifier hs-var">arbitrary</span></span><span>
+</span><span id="line-129"></span><span>    </span><span id="local-6989586621680288895"><span class="annot"><span class="annottext">HeadId
+</span><a href="#local-6989586621680288895"><span class="hs-identifier hs-var">headId</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Gen HeadId
+forall a. Arbitrary a =&gt; Gen a
+</span><span class="hs-identifier hs-var">arbitrary</span></span><span>
+</span><span id="line-130"></span><span>    </span><span class="annot"><span class="annottext">HeadId
+-&gt; SnapshotNumber
+-&gt; UTxOType tx
+-&gt; [SigningKey HydraKey]
+-&gt; Gen (ConfirmedSnapshot tx)
+forall tx.
+IsTx tx =&gt;
+HeadId
+-&gt; SnapshotNumber
+-&gt; UTxOType tx
+-&gt; [SigningKey HydraKey]
+-&gt; Gen (ConfirmedSnapshot tx)
+</span><a href="Hydra.Snapshot.html#genConfirmedSnapshot"><span class="hs-identifier hs-var">genConfirmedSnapshot</span></a></span><span> </span><span class="annot"><span class="annottext">HeadId
+</span><a href="#local-6989586621680288895"><span class="hs-identifier hs-var">headId</span></a></span><span> </span><span class="annot"><span class="annottext">SnapshotNumber
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">UTxOType tx
+</span><a href="#local-6989586621680288894"><span class="hs-identifier hs-var">utxo</span></a></span><span> </span><span class="annot"><span class="annottext">[SigningKey HydraKey]
+</span><a href="#local-6989586621680288893"><span class="hs-identifier hs-var">ks</span></a></span><span>
+</span><span id="line-131"></span><span>
+</span><span id="line-132"></span><span>  </span><span id="local-6989586621680288906"><span class="annot"><span class="annottext">shrink :: ConfirmedSnapshot tx -&gt; [ConfirmedSnapshot tx]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">shrink</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-133"></span><span>    </span><span class="annot"><a href="Hydra.Snapshot.html#InitialSnapshot"><span class="hs-identifier hs-type">InitialSnapshot</span></a></span><span> </span><span id="local-6989586621680288907"><span class="annot"><span class="annottext">HeadId
+</span><a href="#local-6989586621680288907"><span class="hs-identifier hs-var">hid</span></a></span></span><span> </span><span id="local-6989586621680288908"><span class="annot"><span class="annottext">UTxOType tx
+</span><a href="#local-6989586621680288908"><span class="hs-identifier hs-var">sn</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">HeadId -&gt; UTxOType tx -&gt; ConfirmedSnapshot tx
+forall tx. HeadId -&gt; UTxOType tx -&gt; ConfirmedSnapshot tx
+</span><a href="Hydra.Snapshot.html#InitialSnapshot"><span class="hs-identifier hs-var">InitialSnapshot</span></a></span><span> </span><span class="annot"><span class="annottext">HeadId
+</span><a href="#local-6989586621680288907"><span class="hs-identifier hs-var">hid</span></a></span><span> </span><span class="annot"><span class="annottext">UTxOType tx
+</span><a href="#local-6989586621680288909"><span class="hs-identifier hs-var">sn'</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621680288909"><span class="annot"><span class="annottext">UTxOType tx
+</span><a href="#local-6989586621680288909"><span class="hs-identifier hs-var">sn'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">UTxOType tx -&gt; [UTxOType tx]
+forall a. Arbitrary a =&gt; a -&gt; [a]
+</span><span class="hs-identifier hs-var">shrink</span></span><span> </span><span class="annot"><span class="annottext">UTxOType tx
+</span><a href="#local-6989586621680288908"><span class="hs-identifier hs-var">sn</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-134"></span><span>    </span><span class="annot"><a href="Hydra.Snapshot.html#ConfirmedSnapshot"><span class="hs-identifier hs-type">ConfirmedSnapshot</span></a></span><span> </span><span id="local-6989586621680288910"><span class="annot"><span class="annottext">Snapshot tx
+</span><a href="#local-6989586621680288910"><span class="hs-identifier hs-var">sn</span></a></span></span><span> </span><span id="local-6989586621680288911"><span class="annot"><span class="annottext">MultiSignature (Snapshot tx)
+</span><a href="#local-6989586621680288911"><span class="hs-identifier hs-var">sigs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Snapshot tx -&gt; MultiSignature (Snapshot tx) -&gt; ConfirmedSnapshot tx
+forall tx.
+Snapshot tx -&gt; MultiSignature (Snapshot tx) -&gt; ConfirmedSnapshot tx
+</span><a href="Hydra.Snapshot.html#ConfirmedSnapshot"><span class="hs-identifier hs-var">ConfirmedSnapshot</span></a></span><span> </span><span class="annot"><span class="annottext">(Snapshot tx
+ -&gt; MultiSignature (Snapshot tx) -&gt; ConfirmedSnapshot tx)
+-&gt; [Snapshot tx]
+-&gt; [MultiSignature (Snapshot tx) -&gt; ConfirmedSnapshot tx]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/Data.Functor.html#%3C%24%3E"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Snapshot tx -&gt; [Snapshot tx]
+forall a. Arbitrary a =&gt; a -&gt; [a]
+</span><span class="hs-identifier hs-var">shrink</span></span><span> </span><span class="annot"><span class="annottext">Snapshot tx
+</span><a href="#local-6989586621680288910"><span class="hs-identifier hs-var">sn</span></a></span><span> </span><span class="annot"><span class="annottext">[MultiSignature (Snapshot tx) -&gt; ConfirmedSnapshot tx]
+-&gt; [MultiSignature (Snapshot tx)] -&gt; [ConfirmedSnapshot tx]
+forall a b. [a -&gt; b] -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%3C%2A%3E"><span class="hs-operator hs-var">&lt;*&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">MultiSignature (Snapshot tx) -&gt; [MultiSignature (Snapshot tx)]
+forall a. Arbitrary a =&gt; a -&gt; [a]
+</span><span class="hs-identifier hs-var">shrink</span></span><span> </span><span class="annot"><span class="annottext">MultiSignature (Snapshot tx)
+</span><a href="#local-6989586621680288911"><span class="hs-identifier hs-var">sigs</span></a></span><span>
+</span><span id="line-135"></span><span>
+</span><span id="line-136"></span><span id="local-6989586621680287951"><span class="annot"><a href="Hydra.Snapshot.html#genConfirmedSnapshot"><span class="hs-identifier hs-type">genConfirmedSnapshot</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-137"></span><span>  </span><span class="annot"><a href="Hydra.Ledger.html#IsTx"><span class="hs-identifier hs-type">IsTx</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680287951"><span class="hs-identifier hs-type">tx</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-138"></span><span>  </span><span class="annot"><a href="Hydra.HeadId.html#HeadId"><span class="hs-identifier hs-type">HeadId</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-139"></span><span>  </span><span class="hs-comment">-- | The lower bound on snapshot number to generate.</span><span>
+</span><span id="line-140"></span><span>  </span><span class="hs-comment">-- If this is 0, then we can generate an `InitialSnapshot` or a `ConfirmedSnapshot`.</span><span>
+</span><span id="line-141"></span><span>  </span><span class="hs-comment">-- Otherwise we generate only `ConfirmedSnapshot` with a number strictly superior to</span><span>
+</span><span id="line-142"></span><span>  </span><span class="hs-comment">-- this lower bound.</span><span>
+</span><span id="line-143"></span><span>  </span><span class="annot"><a href="Hydra.Snapshot.html#SnapshotNumber"><span class="hs-identifier hs-type">SnapshotNumber</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-144"></span><span>  </span><span class="annot"><a href="Hydra.Ledger.html#UTxOType"><span class="hs-identifier hs-type">UTxOType</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680287951"><span class="hs-identifier hs-type">tx</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-145"></span><span>  </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">SigningKey</span></span><span> </span><span class="annot"><a href="Hydra.Crypto.html#HydraKey"><span class="hs-identifier hs-type">HydraKey</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-146"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Gen</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Hydra.Snapshot.html#ConfirmedSnapshot"><span class="hs-identifier hs-type">ConfirmedSnapshot</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680287951"><span class="hs-identifier hs-type">tx</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-147"></span><span id="genConfirmedSnapshot"><span class="annot"><span class="annottext">genConfirmedSnapshot :: forall tx.
+IsTx tx =&gt;
+HeadId
+-&gt; SnapshotNumber
+-&gt; UTxOType tx
+-&gt; [SigningKey HydraKey]
+-&gt; Gen (ConfirmedSnapshot tx)
+</span><a href="Hydra.Snapshot.html#genConfirmedSnapshot"><span class="hs-identifier hs-var hs-var">genConfirmedSnapshot</span></a></span></span><span> </span><span id="local-6989586621680288926"><span class="annot"><span class="annottext">HeadId
+</span><a href="#local-6989586621680288926"><span class="hs-identifier hs-var">headId</span></a></span></span><span> </span><span id="local-6989586621680288927"><span class="annot"><span class="annottext">SnapshotNumber
+</span><a href="#local-6989586621680288927"><span class="hs-identifier hs-var">minSn</span></a></span></span><span> </span><span id="local-6989586621680288928"><span class="annot"><span class="annottext">UTxOType tx
+</span><a href="#local-6989586621680288928"><span class="hs-identifier hs-var">utxo</span></a></span></span><span> </span><span id="local-6989586621680288929"><span class="annot"><span class="annottext">[SigningKey HydraKey]
+</span><a href="#local-6989586621680288929"><span class="hs-identifier hs-var">sks</span></a></span></span><span>
+</span><span id="line-148"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">SnapshotNumber
+</span><a href="#local-6989586621680288927"><span class="hs-identifier hs-var">minSn</span></a></span><span> </span><span class="annot"><span class="annottext">SnapshotNumber -&gt; SnapshotNumber -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/ghc-prim-0.10.0/src/GHC.Classes.html#%3E"><span class="hs-operator hs-var">&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">SnapshotNumber
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Gen (ConfirmedSnapshot tx)
+</span><a href="#local-6989586621680288931"><span class="hs-identifier hs-var">confirmedSnapshot</span></a></span><span>
+</span><span id="line-149"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#otherwise"><span class="hs-identifier hs-var">otherwise</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-150"></span><span>      </span><span class="annot"><span class="annottext">[(Int, Gen (ConfirmedSnapshot tx))] -&gt; Gen (ConfirmedSnapshot tx)
+forall a. [(Int, Gen a)] -&gt; Gen a
+</span><span class="hs-identifier hs-var">frequency</span></span><span>
+</span><span id="line-151"></span><span>        </span><span class="hs-special">[</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Gen (ConfirmedSnapshot tx)
+</span><a href="#local-6989586621680288932"><span class="hs-identifier hs-var">initialSnapshot</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-152"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">9</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Gen (ConfirmedSnapshot tx)
+</span><a href="#local-6989586621680288931"><span class="hs-identifier hs-var">confirmedSnapshot</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-153"></span><span>        </span><span class="hs-special">]</span><span>
+</span><span id="line-154"></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-155"></span><span>  </span><span id="local-6989586621680288932"><span class="annot"><span class="annottext">initialSnapshot :: Gen (ConfirmedSnapshot tx)
+</span><a href="#local-6989586621680288932"><span class="hs-identifier hs-var hs-var">initialSnapshot</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-156"></span><span>    </span><span class="annot"><span class="annottext">HeadId -&gt; UTxOType tx -&gt; ConfirmedSnapshot tx
+forall tx. HeadId -&gt; UTxOType tx -&gt; ConfirmedSnapshot tx
+</span><a href="Hydra.Snapshot.html#InitialSnapshot"><span class="hs-identifier hs-var">InitialSnapshot</span></a></span><span> </span><span class="annot"><span class="annottext">(HeadId -&gt; UTxOType tx -&gt; ConfirmedSnapshot tx)
+-&gt; Gen HeadId -&gt; Gen (UTxOType tx -&gt; ConfirmedSnapshot tx)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/Data.Functor.html#%3C%24%3E"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Gen HeadId
+forall a. Arbitrary a =&gt; Gen a
+</span><span class="hs-identifier hs-var">arbitrary</span></span><span> </span><span class="annot"><span class="annottext">Gen (UTxOType tx -&gt; ConfirmedSnapshot tx)
+-&gt; Gen (UTxOType tx) -&gt; Gen (ConfirmedSnapshot tx)
+forall a b. Gen (a -&gt; b) -&gt; Gen a -&gt; Gen b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%3C%2A%3E"><span class="hs-operator hs-var">&lt;*&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">UTxOType tx -&gt; Gen (UTxOType tx)
+forall a. a -&gt; Gen a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#pure"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="annot"><span class="annottext">UTxOType tx
+</span><a href="#local-6989586621680288928"><span class="hs-identifier hs-var">utxo</span></a></span><span>
+</span><span id="line-157"></span><span>
+</span><span id="line-158"></span><span>  </span><span id="local-6989586621680288931"><span class="annot"><span class="annottext">confirmedSnapshot :: Gen (ConfirmedSnapshot tx)
+</span><a href="#local-6989586621680288931"><span class="hs-identifier hs-var hs-var">confirmedSnapshot</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-159"></span><span>    </span><span class="hs-comment">-- FIXME: This is another nail in the coffin to our current modeling of</span><span>
+</span><span id="line-160"></span><span>    </span><span class="hs-comment">-- snapshots</span><span>
+</span><span id="line-161"></span><span>    </span><span id="local-6989586621680288933"><span class="annot"><span class="annottext">SnapshotNumber
+</span><a href="#local-6989586621680288933"><span class="hs-identifier hs-var">number</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Gen SnapshotNumber
+forall a. Arbitrary a =&gt; Gen a
+</span><span class="hs-identifier hs-var">arbitrary</span></span><span> </span><span class="annot"><span class="annottext">Gen SnapshotNumber
+-&gt; (SnapshotNumber -&gt; Bool) -&gt; Gen SnapshotNumber
+forall a. Gen a -&gt; (a -&gt; Bool) -&gt; Gen a
+</span><span class="hs-operator hs-var">`suchThat`</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SnapshotNumber -&gt; SnapshotNumber -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/ghc-prim-0.10.0/src/GHC.Classes.html#%3E"><span class="hs-operator hs-var">&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">SnapshotNumber
+</span><a href="#local-6989586621680288927"><span class="hs-identifier hs-var">minSn</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-162"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680288934"><span class="annot"><span class="annottext">snapshot :: Snapshot tx
+</span><a href="#local-6989586621680288934"><span class="hs-identifier hs-var hs-var">snapshot</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Hydra.Snapshot.html#Snapshot"><span class="hs-identifier hs-type">Snapshot</span></a></span><span class="hs-special">{</span><span class="annot"><span class="annottext">HeadId
+$sel:headId:Snapshot :: HeadId
+headId :: HeadId
+</span><a href="Hydra.Snapshot.html#%24sel%3AheadId%3ASnapshot"><span class="hs-identifier hs-var hs-var">headId</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SnapshotNumber
+$sel:number:Snapshot :: SnapshotNumber
+number :: SnapshotNumber
+</span><a href="Hydra.Snapshot.html#%24sel%3Anumber%3ASnapshot"><span class="hs-identifier hs-var hs-var">number</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">UTxOType tx
+$sel:utxo:Snapshot :: UTxOType tx
+utxo :: UTxOType tx
+</span><a href="Hydra.Snapshot.html#%24sel%3Autxo%3ASnapshot"><span class="hs-identifier hs-var hs-var">utxo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">$sel:confirmed:Snapshot :: [TxIdType tx]
+</span><a href="Hydra.Snapshot.html#%24sel%3Aconfirmed%3ASnapshot"><span class="hs-identifier hs-var">confirmed</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">}</span><span>
+</span><span id="line-163"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680288935"><span class="annot"><span class="annottext">signatures :: MultiSignature (Snapshot tx)
+</span><a href="#local-6989586621680288935"><span class="hs-identifier hs-var hs-var">signatures</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Signature (Snapshot tx)] -&gt; MultiSignature (Snapshot tx)
+forall {k} (a :: k). [Signature a] -&gt; MultiSignature a
+</span><a href="Hydra.Crypto.html#aggregate"><span class="hs-identifier hs-var">aggregate</span></a></span><span> </span><span class="annot"><span class="annottext">([Signature (Snapshot tx)] -&gt; MultiSignature (Snapshot tx))
+-&gt; [Signature (Snapshot tx)] -&gt; MultiSignature (Snapshot tx)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">(SigningKey HydraKey -&gt; Signature (Snapshot tx))
+-&gt; [SigningKey HydraKey] -&gt; [Signature (Snapshot tx)]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#fmap"><span class="hs-identifier hs-var">fmap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SigningKey HydraKey -&gt; Snapshot tx -&gt; Signature (Snapshot tx)
+forall a.
+SignableRepresentation a =&gt;
+SigningKey HydraKey -&gt; a -&gt; Signature a
+</span><a href="Hydra.Crypto.html#sign"><span class="hs-operator hs-var">`sign`</span></a></span><span> </span><span class="annot"><span class="annottext">Snapshot tx
+</span><a href="#local-6989586621680288934"><span class="hs-identifier hs-var">snapshot</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[SigningKey HydraKey]
+</span><a href="#local-6989586621680288929"><span class="hs-identifier hs-var">sks</span></a></span><span>
+</span><span id="line-164"></span><span>    </span><span class="annot"><span class="annottext">ConfirmedSnapshot tx -&gt; Gen (ConfirmedSnapshot tx)
+forall a. a -&gt; Gen a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#pure"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="annot"><span class="annottext">(ConfirmedSnapshot tx -&gt; Gen (ConfirmedSnapshot tx))
+-&gt; ConfirmedSnapshot tx -&gt; Gen (ConfirmedSnapshot tx)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/GHC.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><a href="Hydra.Snapshot.html#ConfirmedSnapshot"><span class="hs-identifier hs-type">ConfirmedSnapshot</span></a></span><span class="hs-special">{</span><span class="annot"><span class="annottext">Snapshot tx
+$sel:snapshot:InitialSnapshot :: Snapshot tx
+snapshot :: Snapshot tx
+</span><a href="Hydra.Snapshot.html#%24sel%3Asnapshot%3AInitialSnapshot"><span class="hs-identifier hs-var hs-var">snapshot</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">MultiSignature (Snapshot tx)
+$sel:signatures:InitialSnapshot :: MultiSignature (Snapshot tx)
+signatures :: MultiSignature (Snapshot tx)
+</span><a href="Hydra.Snapshot.html#%24sel%3Asignatures%3AInitialSnapshot"><span class="hs-identifier hs-var hs-var">signatures</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-165"></span><span>
+</span><span id="line-166"></span><span class="annot"><a href="Hydra.Snapshot.html#fromChainSnapshot"><span class="hs-identifier hs-type">fromChainSnapshot</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Onchain.SnapshotNumber</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Hydra.Snapshot.html#SnapshotNumber"><span class="hs-identifier hs-type">SnapshotNumber</span></a></span><span>
+</span><span id="line-167"></span><span id="fromChainSnapshot"><span class="annot"><span class="annottext">fromChainSnapshot :: Integer -&gt; SnapshotNumber
+</span><a href="Hydra.Snapshot.html#fromChainSnapshot"><span class="hs-identifier hs-var hs-var">fromChainSnapshot</span></a></span></span><span> </span><span id="local-6989586621680288938"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621680288938"><span class="hs-identifier hs-var">onChainSnapshotNumber</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-168"></span><span>  </span><span class="annot"><span class="annottext">SnapshotNumber
+-&gt; (Natural -&gt; SnapshotNumber) -&gt; Maybe Natural -&gt; SnapshotNumber
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><a href="file:///nix/store/wqsa6d2n7mmdrj76zqk4d4pnm4mkjq8g-ghc-9.6.4-doc/share/doc/ghc-9.6.4/html/libraries/base-4.18.2.0/src/Data.Maybe.html#maybe"><span class="hs-identifier hs-var">maybe</span></a></span><span>
+</span><span id="line-169"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; SnapshotNumber
+forall a t. (HasCallStack, IsText t) =&gt; t -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Failed to convert on-chain SnapShotNumber to off-chain one.&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-170"></span><span>    </span><span class="annot"><span class="annottext">Natural -&gt; SnapshotNumber
+</span><a href="Hydra.Snapshot.html#UnsafeSnapshotNumber"><span class="hs-identifier hs-var">UnsafeSnapshotNumber</span></a></span><span>
+</span><span id="line-171"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; Maybe Natural
+</span><span class="hs-identifier hs-var">integerToNatural</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621680288938"><span class="hs-identifier hs-var">onChainSnapshotNumber</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-172"></span></pre></body></html>
