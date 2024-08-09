@@ -2,6 +2,9 @@ module Bench.Options where
 
 import Hydra.Prelude
 
+import Hydra.Cardano.Api (NetworkId, SocketPath)
+import Hydra.Chain (maximumNumberOfParties)
+import Hydra.Options (networkIdParser, nodeSocketParser)
 import Options.Applicative (
   Parser,
   ParserInfo,
@@ -41,6 +44,14 @@ data Options
       , timeoutSeconds :: NominalDiffTime
       , startingNodeId :: Int
       }
+  | DemoOptions
+      { outputDirectory :: Maybe FilePath
+      , scalingFactor :: Int
+      , timeoutSeconds :: NominalDiffTime
+      , networkId :: NetworkId
+      , nodeSocket :: SocketPath
+      , hydraSigningKeys :: [FilePath]
+      }
 
 benchOptionsParser :: ParserInfo Options
 benchOptionsParser =
@@ -48,6 +59,7 @@ benchOptionsParser =
     ( hsubparser
         ( command "single" standaloneOptionsInfo
             <> command "datasets" datasetOptionsInfo
+            <> command "demo" demoOptionsInfo
         )
         <**> helper
     )
@@ -154,6 +166,38 @@ startingNodeIdParser =
           \ id controls TCP ports allocation for various servers run by the nodes, \
           \ it's useful to change if local processes on the machine running the \
           \ benchmark conflicts with default ports allocation scheme (default: 0)"
+    )
+
+demoOptionsInfo :: ParserInfo Options
+demoOptionsInfo =
+  info
+    demoOptionsParser
+    ( progDesc
+        "Run scenarios from local running demo."
+    )
+
+demoOptionsParser :: Parser Options
+demoOptionsParser =
+  DemoOptions
+    <$> optional outputDirectoryParser
+    <*> scalingFactorParser
+    <*> timeoutParser
+    <*> networkIdParser
+    <*> nodeSocketParser
+    <*> many hydraSigningKeyFileParser
+
+hydraSigningKeyFileParser :: Parser FilePath
+hydraSigningKeyFileParser =
+  option
+    str
+    ( long "hydra-sk"
+        <> metavar "FILE"
+        <> help
+          ( "Hydra signing key of a party in the Head. Can be \
+            \provided multiple times, once for each participant (current maximum limit is "
+              <> show maximumNumberOfParties
+              <> " )."
+          )
     )
 
 datasetOptionsInfo :: ParserInfo Options
